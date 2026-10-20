@@ -251,4 +251,15 @@ extern int get_vfs_caps_from_disk(const struct dentry *dentry, struct cpu_vfs_ca
 
 extern int cap_convert_nscap(struct dentry *dentry, void **ivalue, size_t size);
 
+
+static inline bool perfmon_capable(void)
+{
+	return capable(CAP_PERFMON) || capable(CAP_SYS_ADMIN);
+}
+
+static inline bool bpf_capable(void)
+{
+	return capable(CAP_BPF) || capable(CAP_SYS_ADMIN);
+}
+
 #endif /* !_LINUX_CAPABILITY_H */
