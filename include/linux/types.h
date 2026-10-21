@@ -12,6 +12,7 @@
 
 typedef __u32 __kernel_dev_t;
 
+typedef unsigned int		__poll_t;
 typedef __kernel_fd_set		fd_set;
 typedef __kernel_dev_t		dev_t;
 typedef __kernel_ino_t		ino_t;

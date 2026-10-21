@@ -73,6 +73,8 @@ static inline unsigned long vmalloc_nr_pages(void) { return 0; }
 extern void *vmalloc(unsigned long size);
 extern void *vzalloc(unsigned long size);
 extern void *vmalloc_user(unsigned long size);
+/* 4.14 compat: 5.x BPF API */
+extern void *vmalloc_user_node_flags(unsigned long size, int node, gfp_t flags);
 extern void *vmalloc_node(unsigned long size, int node);
 extern void *vzalloc_node(unsigned long size, int node);
 extern void *vmalloc_exec(unsigned long size);

@@ -106,6 +106,12 @@ static inline void __list_del(struct list_head * prev, struct list_head * next)
 	WRITE_ONCE(prev->next, next);
 }
 
+/* 4.14 compat: 4.19 helper (used by BPF devmap bulk flush) */
+static inline void __list_del_clearprev(struct list_head *entry)
+{
+	WRITE_ONCE(entry->prev, NULL);
+}
+
 /**
  * list_del - deletes entry from list.
  * @entry: the element to delete from the list.
@@ -659,6 +665,12 @@ static inline void INIT_HLIST_NODE(struct hlist_node *h)
 {
 	h->next = NULL;
 	h->pprev = NULL;
+}
+
+/* 4.14 compat: lockless variant used by bpf_local_storage */
+static inline int hlist_unhashed_lockless(const struct hlist_node *h)
+{
+	return !READ_ONCE(h->pprev);
 }
 
 static inline int hlist_unhashed(const struct hlist_node *h)

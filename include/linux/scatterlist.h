@@ -246,6 +246,13 @@ int sg_nents(struct scatterlist *sg);
 int sg_nents_for_len(struct scatterlist *sg, u64 len);
 struct scatterlist *sg_next(struct scatterlist *);
 struct scatterlist *sg_last(struct scatterlist *s, unsigned int);
+/* 4.14 compat: 5.x helper used by skmsg */
+static inline void sg_init_marker(struct scatterlist *sgl,
+				  unsigned int nents)
+{
+	sg_mark_end(&sgl[nents - 1]);
+}
+
 void sg_init_table(struct scatterlist *, unsigned int);
 void sg_init_one(struct scatterlist *, const void *, unsigned int);
 int sg_split(struct scatterlist *in, const int in_mapped_nents,

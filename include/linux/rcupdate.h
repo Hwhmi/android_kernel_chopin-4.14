@@ -886,5 +886,24 @@ static inline notrace void rcu_read_unlock_sched_notrace(void)
 #define smp_mb__after_unlock_lock()	do { } while (0)
 #endif /* #else #ifdef CONFIG_ARCH_WEAK_RELEASE_ACQUIRE */
 
+/* 4.14 compat: 5.x periodic RCUQS for long-running kthreads; no-op shim */
+static inline unsigned long rcu_softirq_qs_periodic(unsigned long ts)
+{
+	return ts;
+}
+
+
+/* 4.14 compat: lockdep_is_held() unavailable without CONFIG_LOCKDEP */
+#ifndef lockdep_is_held
+#define lockdep_is_held(lock)	1
+#endif
+
+/* 4.14 compat: rcu_replace_pointer() (5.x) */
+#define rcu_replace_pointer(rcu_ptr, ptr, c)				\
+({									\
+	typeof(ptr) __tmp = rcu_dereference_protected((rcu_ptr), (c));	\
+	rcu_assign_pointer((rcu_ptr), (ptr));				\
+	__tmp;								\
+})
 
 #endif /* __LINUX_RCUPDATE_H */

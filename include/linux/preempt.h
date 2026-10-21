@@ -325,4 +325,10 @@ static inline void preempt_notifier_init(struct preempt_notifier *notifier,
 
 #endif
 
+
+#ifndef migrate_disable
+static inline void migrate_disable(void) { preempt_disable(); }
+static inline void migrate_enable(void) { preempt_enable(); }
+#endif
+
 #endif /* __LINUX_PREEMPT_H */

@@ -31,3 +31,20 @@ unsigned long _copy_to_user(void __user *to, const void *from, unsigned long n)
 }
 EXPORT_SYMBOL(_copy_to_user);
 #endif
+
+/* 4.14 compat: simple byte-wise check_zeroed_user for BPF uattr tail check.
+ * (5.x uses user_access_begin batching which 4.14 arm64 lacks.) */
+int check_zeroed_user(const void __user *from, size_t size)
+{
+	unsigned char v;
+	size_t i;
+
+	for (i = 0; i < size; i++) {
+		if (get_user(v, (unsigned char __user *)(from + i)))
+			return -EFAULT;
+		if (v)
+			return 0;
+	}
+	return 1;
+}
+EXPORT_SYMBOL(check_zeroed_user);

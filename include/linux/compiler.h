@@ -4,6 +4,11 @@
 
 #include <linux/compiler_types.h>
 
+/* 4.14 compat: 5.x fallthrough statement attribute */
+#ifndef fallthrough
+#define fallthrough			__attribute__((__fallthrough__))
+#endif
+
 #ifndef __ASSEMBLY__
 
 #ifdef __KERNEL__

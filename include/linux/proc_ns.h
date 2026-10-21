@@ -76,11 +76,26 @@ static inline int ns_alloc_inum(struct ns_common *ns)
 
 extern struct file *proc_ns_fget(int fd);
 #define get_proc_ns(inode) ((struct ns_common *)(inode)->i_private)
+
+/* 4.14 compat: used by BPF task-file iter (5.10) */
+extern bool ns_match(const struct ns_common *ns, dev_t dev, ino_t ino);
 extern void *ns_get_path(struct path *path, struct task_struct *task,
 			const struct proc_ns_operations *ns_ops);
 
 extern int ns_get_name(char *buf, size_t size, struct task_struct *task,
 			const struct proc_ns_operations *ns_ops);
 extern void nsfs_init(void);
+
+
+/* 4.14 compat: ns_get_path_cb() does not exist; bpf dev-bound offload
+ * info is never requested on this platform (no offload capable netdev).
+ */
+typedef struct ns_common *ns_get_path_helper_t(void *);
+static inline int ns_get_path_cb(struct path *path, ns_get_path_helper_t ns_get_cb,
+				 void *private_data)
+{
+	(void)path; (void)ns_get_cb; (void)private_data;
+	return -ENODEV;
+}
 
 #endif /* _LINUX_PROC_NS_H */

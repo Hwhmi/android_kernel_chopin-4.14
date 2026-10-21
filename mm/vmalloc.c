@@ -1907,6 +1907,23 @@ void *vmalloc_user(unsigned long size)
 }
 EXPORT_SYMBOL(vmalloc_user);
 
+/* 4.14 compat: 5.x API used by BPF map allocation on a specific node */
+void *vmalloc_user_node_flags(unsigned long size, int node, gfp_t flags)
+{
+	struct vm_struct *area;
+	void *ret;
+
+	ret = __vmalloc_node(size, SHMLBA, flags | __GFP_ZERO,
+			     PAGE_KERNEL, node,
+			     __builtin_return_address(0));
+	if (ret) {
+		area = find_vm_area(ret);
+		area->flags |= VM_USERMAP;
+	}
+	return ret;
+}
+EXPORT_SYMBOL(vmalloc_user_node_flags);
+
 /**
  *	vmalloc_node  -  allocate memory on a specific node
  *	@size:		allocation size

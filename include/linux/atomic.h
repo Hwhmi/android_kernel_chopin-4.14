@@ -1081,6 +1081,26 @@ static inline long long atomic64_fetch_andnot_release(long long i, atomic64_t *v
 #define atomic_cond_read_acquire(v, c)	smp_cond_load_acquire(&(v)->counter, (c))
 #endif
 
+/* 4.14 compat: 5.x atomic64_fetch_add_unless, returns the old value.
+ * Placed here (not asm/atomic.h) because cmpxchg may not be declared yet
+ * when asm/cmpxchg.h includes asm/atomic.h. */
+#ifndef atomic64_fetch_add_unless
+#include <asm/cmpxchg.h>
+static inline s64 atomic64_fetch_add_unless(atomic64_t *v, s64 a, s64 u)
+{
+	s64 c, old;
+
+	c = atomic64_read(v);
+	while (c != u) {
+		old = atomic64_cmpxchg(v, c, c + a);
+		if (old == c)
+			break;
+		c = old;
+	}
+	return c;
+}
+#endif
+
 #include <asm-generic/atomic-long.h>
 
 #endif /* _LINUX_ATOMIC_H */

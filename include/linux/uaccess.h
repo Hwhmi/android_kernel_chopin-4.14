@@ -275,4 +275,8 @@ static inline unsigned long user_access_save(void) { return 0UL; }
 static inline void user_access_restore(unsigned long flags) { }
 #endif
 
+
+/* 4.14 compat: used by BPF uattr tail-zero check */
+int check_zeroed_user(const void __user *from, size_t size);
+
 #endif		/* __LINUX_UACCESS_H__ */
