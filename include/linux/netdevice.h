@@ -66,6 +66,9 @@ struct mpls_dev;
 struct udp_tunnel_info;
 struct bpf_prog;
 struct xdp_buff;
+/* 4.14 compat: 4.19 forward decls for BPF devmap bulk queue */
+struct xdp_frame;
+struct xdp_dev_bulk_queue;
 
 void netdev_set_default_ethtool_ops(struct net_device *dev,
 				    const struct ethtool_ops *ops);
@@ -567,6 +570,9 @@ struct netdev_queue {
 	 * (/sys/class/net/DEV/Q/trans_timeout)
 	 */
 	unsigned long		trans_timeout;
+#ifdef CONFIG_XDP_SOCKETS
+	struct xdp_umem		*umem; /* 4.19 AF_XDP UMEM reference */
+#endif
 /*
  * write-mostly part
  */
@@ -686,6 +692,9 @@ struct netdev_rx_queue {
 #endif
 	struct kobject			kobj;
 	struct net_device		*dev;
+#ifdef CONFIG_XDP_SOCKETS
+	struct xdp_umem		*umem; /* 4.19 AF_XDP UMEM reference */
+#endif
 } ____cacheline_aligned_in_smp;
 
 /*
@@ -799,10 +808,23 @@ enum bpf_netdev_command {
 	BPF_OFFLOAD_VERIFIER_PREP,
 	BPF_OFFLOAD_TRANSLATE,
 	BPF_OFFLOAD_DESTROY,
+	/* 5.10 bpf offload map + XSK commands (4.14 compat append) */
+	XDP_QUERY_PROG_HW,
+	BPF_OFFLOAD_MAP_ALLOC,
+	BPF_OFFLOAD_MAP_FREE,
+	XDP_QUERY_XSK_UMEM,
+	XDP_SETUP_XSK_UMEM,
 };
 
 struct bpf_ext_analyzer_ops;
 struct netlink_ext_ack;
+
+/* 4.14 compat: AF_XDP ndo flags */
+#define XDP_WAKEUP_RX	(1 << 0)
+#define XDP_WAKEUP_TX	(1 << 1)
+
+struct bpf_offloaded_map;
+struct xdp_umem;
 
 struct netdev_bpf {
 	enum bpf_netdev_command command;
@@ -827,6 +849,15 @@ struct netdev_bpf {
 		struct {
 			struct bpf_prog *prog;
 		} offload;
+		/* 5.10: XDP_QUERY_PROG_HW flags, offload maps, XSK */
+		u32 prog_flags;
+		struct {
+			struct bpf_offloaded_map *offmap;
+		};
+		struct {
+			struct xdp_umem *umem;
+			u16 queue_id;
+		} xsk;
 	};
 };
 
@@ -1316,6 +1347,7 @@ struct net_device_ops {
 						      int queue_index,
 						      u32 maxrate);
 	int			(*ndo_get_iflink)(const struct net_device *dev);
+	struct net_device*	(*ndo_get_peer_dev)(struct net_device *dev); /* 4.14 compat: 5.x sockmap veth */
 	int			(*ndo_change_proto_down)(struct net_device *dev,
 							 bool proto_down);
 	int			(*ndo_fill_metadata_dst)(struct net_device *dev,
@@ -1324,9 +1356,12 @@ struct net_device_ops {
 						       int needed_headroom);
 	int			(*ndo_bpf)(struct net_device *dev,
 					   struct netdev_bpf *bpf);
-	int			(*ndo_xdp_xmit)(struct net_device *dev,
-						struct xdp_buff *xdp);
+	/* 4.14 compat: 4.19 ndo_xdp_xmit takes a frame array (devmap bulk) */
+	int			(*ndo_xdp_xmit)(struct net_device *dev, int n,
+						struct xdp_frame **xdp, u32 flags);
 	void			(*ndo_xdp_flush)(struct net_device *dev);
+	int			(*ndo_xsk_wakeup)(struct net_device *dev,
+						   u32 queue_id, u32 flags);
 };
 
 /**
@@ -1836,6 +1871,8 @@ struct net_device {
 	unsigned int		tx_queue_len;
 	spinlock_t		tx_global_lock;
 	int			watchdog_timeo;
+	/* 4.14 compat: 4.19 per-cpu XDP bulk transmit queue (BPF devmap) */
+	struct xdp_dev_bulk_queue __percpu *xdp_bulkq;
 
 #ifdef CONFIG_XPS
 	struct xps_dev_maps __rcu *xps_maps;
@@ -2472,6 +2509,23 @@ DECLARE_PER_CPU(int, xmit_recursion);
 static inline int dev_recursion_level(void)
 {
 	return this_cpu_read(xmit_recursion);
+}
+
+/* 4.14 compat: 4.19 helpers (xmit_recursion percpu var) */
+static inline bool dev_xmit_recursion(void)
+{
+	return unlikely(__this_cpu_read(xmit_recursion) >
+			XMIT_RECURSION_LIMIT);
+}
+
+static inline void dev_xmit_recursion_inc(void)
+{
+	__this_cpu_inc(xmit_recursion);
+}
+
+static inline void dev_xmit_recursion_dec(void)
+{
+	__this_cpu_dec(xmit_recursion);
 }
 
 struct net_device *dev_get_by_index(struct net *net, int ifindex);
@@ -4501,5 +4555,14 @@ do {								\
  */
 #define PTYPE_HASH_SIZE	(16)
 #define PTYPE_HASH_MASK	(PTYPE_HASH_SIZE - 1)
+
+/* 4.14 compat: no dev_direct_xmit(); AF_XDP TX is unused on this platform.
+ * Provide a drop-and-free stub so xsk.c links. */
+static inline int dev_direct_xmit(struct sk_buff *skb, u16 queue_id)
+{
+	(void)queue_id;
+	dev_kfree_skb(skb);
+	return NETDEV_TX_BUSY;
+}
 
 #endif	/* _LINUX_NETDEVICE_H */

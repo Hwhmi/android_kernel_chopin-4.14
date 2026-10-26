@@ -17,6 +17,7 @@
 #include <linux/user_namespace.h>
 #include <linux/net_namespace.h>
 #include <linux/sched/task.h>
+#include <linux/cookie.h> /* 4.14 compat: 4.19 net cookie */
 
 #include <net/sock.h>
 #include <net/netlink.h>
@@ -276,6 +277,9 @@ struct net *get_net_ns_by_id(struct net *net, int id)
 /*
  * setup_net runs the initializers for the network namespace object.
  */
+/* 4.14 compat: 4.19 net cookie */
+DEFINE_COOKIE(net_cookie);
+
 static __net_init int setup_net(struct net *net, struct user_namespace *user_ns)
 {
 	/* Must be called with net_mutex held */
@@ -284,6 +288,7 @@ static __net_init int setup_net(struct net *net, struct user_namespace *user_ns)
 	LIST_HEAD(net_exit_list);
 
 	atomic_set(&net->count, 1);
+	atomic64_set(&net->net_cookie, gen_cookie_next(&net_cookie)); /* 4.14 compat */
 	refcount_set(&net->passive, 1);
 	get_random_bytes(&net->hash_mix, sizeof(u32));
 	net->dev_base_seq = 1;

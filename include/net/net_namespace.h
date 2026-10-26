@@ -12,6 +12,8 @@
 #include <linux/sysctl.h>
 
 #include <net/flow.h>
+#include <net/netns/xdp.h>
+#include <net/netns/bpf.h>
 #include <net/netns/core.h>
 #include <net/netns/mib.h>
 #include <net/netns/unix.h>
@@ -58,6 +60,7 @@ struct net {
 
 	u32			hash_mix;
 	atomic64_t		cookie_gen;
+	atomic64_t		net_cookie; /* written once, 4.14 compat */
 
 	struct list_head	list;		/* list of network namespaces */
 	struct list_head	cleanup_list;	/* namespaces on death row */
@@ -137,6 +140,9 @@ struct net {
 #endif
 	struct net_generic __rcu	*gen;
 
+	/* Used to store attached BPF programs */
+	struct netns_bpf	bpf;
+
 	/* Note : following structs are cache line aligned */
 #ifdef CONFIG_XFRM
 	struct netns_xfrm	xfrm;
@@ -149,6 +155,9 @@ struct net {
 #endif
 #if IS_ENABLED(CONFIG_CAN)
 	struct netns_can	can;
+#endif
+#ifdef CONFIG_XDP_SOCKETS
+	struct netns_xdp	xdp;
 #endif
 	struct sock		*diag_nlsk;
 	atomic_t		fnhe_genid;
