@@ -95,6 +95,8 @@
 #ifdef TRACEPOINTS_ENABLED
 #include <trace/trace_events.h>
 #include <trace/perf.h>
+/* 4.14 compat: BPF raw tracepoint probe maps (5.10) */
+#include <trace/bpf_probe.h>
 #endif
 
 #undef TRACE_EVENT

@@ -1425,4 +1425,31 @@ int perf_event_exit_cpu(unsigned int cpu);
 #define perf_event_exit_cpu	NULL
 #endif
 
+/* 4.14 compat: perf ksymbol/BPF-event infra not backported; perf-based
+ * BPF prog load/unload notification and perf-fd fd_query are dropped. */
+struct bpf_prog;
+
+enum perf_bpf_event_type {
+	PERF_BPF_EVENT_UNKNOWN	= 0,
+	PERF_BPF_EVENT_PROG_LOAD,
+	PERF_BPF_EVENT_PROG_UNLOAD,
+	PERF_BPF_EVENT_MAX,
+};
+
+static inline void perf_event_bpf_event(struct bpf_prog *prog,
+					enum perf_bpf_event_type type,
+					u16 flags)
+{ }
+
+static inline const struct perf_event *perf_get_event(struct file *file)
+{
+	return ERR_PTR(-EINVAL);
+}
+
+/* 4.14 compat: ksymbol reporting not backported; no-op */
+#define PERF_RECORD_KSYMBOL_TYPE_BPF		2
+static inline void perf_event_ksymbol(u16 ksymbol_type, u64 addr, u32 len,
+				      bool unregister, const char *name)
+{ }
+
 #endif /* _LINUX_PERF_EVENT_H */

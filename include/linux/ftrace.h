@@ -1001,4 +1001,24 @@ unsigned long arch_syscall_addr(int nr);
 
 #endif /* CONFIG_FTRACE_SYSCALLS */
 
+/* 4.14 compat: 5.x ftrace direct call API not backported; BPF trampoline
+ * attach falls back to bpf_arch_text_poke / fails gracefully. */
+static inline int register_ftrace_direct(unsigned long ip, unsigned long addr)
+{
+	return -ENOTSUPP;
+}
+
+static inline int modify_ftrace_direct(unsigned long ip,
+				       unsigned long old_addr,
+				       unsigned long new_addr)
+{
+	return -ENOTSUPP;
+}
+
+static inline int unregister_ftrace_direct(unsigned long ip,
+					   unsigned long addr)
+{
+	return -ENOTSUPP;
+}
+
 #endif /* _LINUX_FTRACE_H */

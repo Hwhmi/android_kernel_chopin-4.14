@@ -11,6 +11,12 @@
 #include <linux/bpf.h>
 #include <linux/bpf_perf_event.h>
 #include <linux/filter.h>
+/* 4.14 compat: no is_syscall_trace_event() */
+static inline int is_syscall_trace_event(struct trace_event_call *tp_event)
+{
+	return 0;
+}
+u64 bpf_get_stackid(u64 r1, u64 r2, u64 r3, u64 r4, u64 r5);
 #include <linux/uaccess.h>
 #include <linux/ctype.h>
 #include "trace.h"
@@ -547,7 +553,12 @@ static bool kprobe_prog_is_valid_access(int off, int size, enum bpf_access_type 
 	return true;
 }
 
-const struct bpf_verifier_ops kprobe_prog_ops = {
+/* 5.10: bpf_prog_ops / bpf_verifier_ops split; tracing progs need no ops */
+const struct bpf_prog_ops kprobe_prog_ops = {};
+const struct bpf_prog_ops tracepoint_prog_ops = {};
+const struct bpf_prog_ops perf_event_prog_ops = {};
+
+const struct bpf_verifier_ops kprobe_verifier_ops = {
 	.get_func_proto  = kprobe_prog_func_proto,
 	.is_valid_access = kprobe_prog_is_valid_access,
 };
@@ -627,7 +638,7 @@ static bool tp_prog_is_valid_access(int off, int size, enum bpf_access_type type
 	return true;
 }
 
-const struct bpf_verifier_ops tracepoint_prog_ops = {
+const struct bpf_verifier_ops tracepoint_verifier_ops = {
 	.get_func_proto  = tp_prog_func_proto,
 	.is_valid_access = tp_prog_is_valid_access,
 };
@@ -688,7 +699,7 @@ static u32 pe_prog_convert_ctx_access(enum bpf_access_type type,
 	return insn - insn_buf;
 }
 
-const struct bpf_verifier_ops perf_event_prog_ops = {
+const struct bpf_verifier_ops perf_event_verifier_ops = {
 	.get_func_proto		= tp_prog_func_proto,
 	.is_valid_access	= pe_prog_is_valid_access,
 	.convert_ctx_access	= pe_prog_convert_ctx_access,
@@ -751,4 +762,198 @@ void perf_event_detach_bpf_prog(struct perf_event *event)
 
 out:
 	mutex_unlock(&bpf_event_mutex);
+}
+
+/* 4.14 compat: BPF raw tracepoint support ported from 5.10.
+ * Module-provided tracepoints are not supported (bpf_get_raw_tracepoint_module
+ * returns NULL); only built-in __bpf_raw_tp_map entries are visible. */
+extern struct bpf_raw_event_map __start__bpf_raw_tp[];
+extern struct bpf_raw_event_map __stop__bpf_raw_tp[];
+
+struct bpf_raw_event_map *bpf_get_raw_tracepoint(const char *name)
+{
+	struct bpf_raw_event_map *btp = __start__bpf_raw_tp;
+
+	for (; btp < __stop__bpf_raw_tp; btp++) {
+		if (!strcmp(btp->tp->name, name))
+			return btp;
+	}
+
+	return NULL;
+}
+
+void bpf_put_raw_tracepoint(struct bpf_raw_event_map *btp)
+{
+	/* built-in tracepoints hold no module reference */
+}
+
+static __always_inline
+void __bpf_trace_run(struct bpf_prog *prog, u64 *args)
+{
+	cant_sleep();
+	rcu_read_lock();
+	(void) BPF_PROG_RUN(prog, args);
+	rcu_read_unlock();
+}
+
+#define UNPACK(...)			__VA_ARGS__
+#define REPEAT_1(FN, DL, X, ...)	FN(X)
+#define REPEAT_2(FN, DL, X, ...)	FN(X) UNPACK DL REPEAT_1(FN, DL, __VA_ARGS__)
+#define REPEAT_3(FN, DL, X, ...)	FN(X) UNPACK DL REPEAT_2(FN, DL, __VA_ARGS__)
+#define REPEAT_4(FN, DL, X, ...)	FN(X) UNPACK DL REPEAT_3(FN, DL, __VA_ARGS__)
+#define REPEAT_5(FN, DL, X, ...)	FN(X) UNPACK DL REPEAT_4(FN, DL, __VA_ARGS__)
+#define REPEAT_6(FN, DL, X, ...)	FN(X) UNPACK DL REPEAT_5(FN, DL, __VA_ARGS__)
+#define REPEAT_7(FN, DL, X, ...)	FN(X) UNPACK DL REPEAT_6(FN, DL, __VA_ARGS__)
+#define REPEAT_8(FN, DL, X, ...)	FN(X) UNPACK DL REPEAT_7(FN, DL, __VA_ARGS__)
+#define REPEAT_9(FN, DL, X, ...)	FN(X) UNPACK DL REPEAT_8(FN, DL, __VA_ARGS__)
+#define REPEAT_10(FN, DL, X, ...)	FN(X) UNPACK DL REPEAT_9(FN, DL, __VA_ARGS__)
+#define REPEAT_11(FN, DL, X, ...)	FN(X) UNPACK DL REPEAT_10(FN, DL, __VA_ARGS__)
+#define REPEAT_12(FN, DL, X, ...)	FN(X) UNPACK DL REPEAT_11(FN, DL, __VA_ARGS__)
+#define REPEAT_13(FN, DL, X, ...)	FN(X) UNPACK DL REPEAT_12(FN, DL, __VA_ARGS__)
+#define REPEAT_14(FN, DL, X, ...)	FN(X) UNPACK DL REPEAT_13(FN, DL, __VA_ARGS__)
+#define REPEAT_15(FN, DL, X, ...)	FN(X) UNPACK DL REPEAT_14(FN, DL, __VA_ARGS__)
+#define REPEAT_16(FN, DL, X, ...)	FN(X) UNPACK DL REPEAT_15(FN, DL, __VA_ARGS__)
+#define REPEAT_17(FN, DL, X, ...)	FN(X) UNPACK DL REPEAT_16(FN, DL, __VA_ARGS__)
+#define REPEAT_18(FN, DL, X, ...)	FN(X) UNPACK DL REPEAT_17(FN, DL, __VA_ARGS__)
+#define REPEAT_19(FN, DL, X, ...)	FN(X) UNPACK DL REPEAT_18(FN, DL, __VA_ARGS__)
+#define REPEAT_20(FN, DL, X, ...)	FN(X) UNPACK DL REPEAT_19(FN, DL, __VA_ARGS__)
+#define REPEAT_21(FN, DL, X, ...)	FN(X) UNPACK DL REPEAT_20(FN, DL, __VA_ARGS__)
+#define REPEAT_22(FN, DL, X, ...)	FN(X) UNPACK DL REPEAT_21(FN, DL, __VA_ARGS__)
+#define REPEAT_23(FN, DL, X, ...)	FN(X) UNPACK DL REPEAT_22(FN, DL, __VA_ARGS__)
+#define REPEAT_24(FN, DL, X, ...)	FN(X) UNPACK DL REPEAT_23(FN, DL, __VA_ARGS__)
+#define REPEAT_25(FN, DL, X, ...)	FN(X) UNPACK DL REPEAT_24(FN, DL, __VA_ARGS__)
+#define REPEAT_26(FN, DL, X, ...)	FN(X) UNPACK DL REPEAT_25(FN, DL, __VA_ARGS__)
+#define REPEAT_27(FN, DL, X, ...)	FN(X) UNPACK DL REPEAT_26(FN, DL, __VA_ARGS__)
+#define REPEAT_28(FN, DL, X, ...)	FN(X) UNPACK DL REPEAT_27(FN, DL, __VA_ARGS__)
+#define REPEAT_29(FN, DL, X, ...)	FN(X) UNPACK DL REPEAT_28(FN, DL, __VA_ARGS__)
+#define REPEAT_30(FN, DL, X, ...)	FN(X) UNPACK DL REPEAT_29(FN, DL, __VA_ARGS__)
+#define REPEAT_31(FN, DL, X, ...)	FN(X) UNPACK DL REPEAT_30(FN, DL, __VA_ARGS__)
+#define REPEAT_32(FN, DL, X, ...)	FN(X) UNPACK DL REPEAT_31(FN, DL, __VA_ARGS__)
+#define REPEAT(X, FN, DL, ...)		REPEAT_##X(FN, DL, __VA_ARGS__)
+
+#define SARG(X)		u64 arg##X
+#define COPY(X)		args[X] = arg##X
+
+#define __DL_COM	(,)
+#define __DL_SEM	(;)
+
+#define __SEQ_0_31	0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31
+
+#define BPF_TRACE_DEFN_x(x)						\
+	void bpf_trace_run##x(struct bpf_prog *prog,			\
+			      REPEAT(x, SARG, __DL_COM, __SEQ_0_31))	\
+	{								\
+		u64 args[x];						\
+		REPEAT(x, COPY, __DL_SEM, __SEQ_0_31);			\
+		__bpf_trace_run(prog, args);				\
+	}								\
+	EXPORT_SYMBOL_GPL(bpf_trace_run##x)
+BPF_TRACE_DEFN_x(1);
+BPF_TRACE_DEFN_x(2);
+BPF_TRACE_DEFN_x(3);
+BPF_TRACE_DEFN_x(4);
+BPF_TRACE_DEFN_x(5);
+BPF_TRACE_DEFN_x(6);
+BPF_TRACE_DEFN_x(7);
+BPF_TRACE_DEFN_x(8);
+BPF_TRACE_DEFN_x(9);
+BPF_TRACE_DEFN_x(10);
+BPF_TRACE_DEFN_x(11);
+BPF_TRACE_DEFN_x(12);
+/* 4.14 compat: MTK tracepoints carry >12 args; 5.10 upstream only defines 1..12 */
+BPF_TRACE_DEFN_x(13);
+BPF_TRACE_DEFN_x(14);
+BPF_TRACE_DEFN_x(15);
+BPF_TRACE_DEFN_x(16);
+BPF_TRACE_DEFN_x(17);
+BPF_TRACE_DEFN_x(18);
+BPF_TRACE_DEFN_x(19);
+BPF_TRACE_DEFN_x(20);
+BPF_TRACE_DEFN_x(21);
+BPF_TRACE_DEFN_x(22);
+BPF_TRACE_DEFN_x(23);
+BPF_TRACE_DEFN_x(24);
+BPF_TRACE_DEFN_x(25);
+BPF_TRACE_DEFN_x(26);
+BPF_TRACE_DEFN_x(27);
+BPF_TRACE_DEFN_x(28);
+BPF_TRACE_DEFN_x(29);
+BPF_TRACE_DEFN_x(30);
+BPF_TRACE_DEFN_x(31);
+BPF_TRACE_DEFN_x(32);
+
+
+static int __bpf_probe_register(struct bpf_raw_event_map *btp, struct bpf_prog *prog)
+{
+	struct tracepoint *tp = btp->tp;
+
+	/*
+	 * check that program doesn't access arguments beyond what's
+	 * available in this tracepoint
+	 */
+	if (prog->aux->max_ctx_offset > btp->num_args * sizeof(u64))
+		return -EINVAL;
+
+	if (prog->aux->max_tp_access > btp->writable_size)
+		return -EINVAL;
+
+	return tracepoint_probe_register_may_exist(tp, (void *)btp->bpf_func,
+						   prog);
+}
+
+int bpf_probe_register(struct bpf_raw_event_map *btp, struct bpf_prog *prog)
+{
+	return __bpf_probe_register(btp, prog);
+}
+
+int bpf_probe_unregister(struct bpf_raw_event_map *btp, struct bpf_prog *prog)
+{
+	return tracepoint_probe_unregister(btp->tp, (void *)btp->bpf_func, prog);
+}
+
+int bpf_get_perf_event_info(const struct perf_event *event, u32 *prog_id,
+			    u32 *fd_type, const char **buf,
+			    u64 *probe_offset, u64 *probe_addr)
+{
+	bool is_tracepoint, is_syscall_tp;
+	struct bpf_prog *prog;
+	int flags, err = 0;
+
+	prog = event->prog;
+	if (!prog)
+		return -ENOENT;
+
+	/* not supporting BPF_PROG_TYPE_PERF_EVENT yet */
+	if (prog->type == BPF_PROG_TYPE_PERF_EVENT)
+		return -EOPNOTSUPP;
+
+	*prog_id = prog->aux->id;
+	flags = event->tp_event->flags;
+	is_tracepoint = flags & TRACE_EVENT_FL_TRACEPOINT;
+	is_syscall_tp = is_syscall_trace_event(event->tp_event);
+
+	if (is_tracepoint || is_syscall_tp) {
+		*buf = is_tracepoint ? event->tp_event->tp->name
+				     : event->tp_event->name;
+		*fd_type = BPF_FD_TYPE_TRACEPOINT;
+		*probe_offset = 0x0;
+		*probe_addr = 0x0;
+	} else {
+		/* kprobe/uprobe */
+		err = -EOPNOTSUPP;
+#ifdef CONFIG_KPROBE_EVENTS
+		if (flags & TRACE_EVENT_FL_KPROBE)
+			err = bpf_get_kprobe_info(event, fd_type, buf,
+						  probe_offset, probe_addr,
+						  event->attr.type == PERF_TYPE_TRACEPOINT);
+#endif
+#ifdef CONFIG_UPROBE_EVENTS
+		if (flags & TRACE_EVENT_FL_UPROBE)
+			err = bpf_get_uprobe_info(event, fd_type, buf,
+						  probe_offset, probe_addr,
+						  event->attr.type == PERF_TYPE_TRACEPOINT);
+#endif
+	}
+
+	return err;
 }

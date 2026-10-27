@@ -35,4 +35,12 @@ struct tracepoint {
 	struct tracepoint_func __rcu *funcs;
 };
 
+/* 4.14 compat: BPF raw tracepoint support ported from 5.10 */
+struct bpf_raw_event_map {
+	struct tracepoint	*tp;
+	void			*bpf_func;
+	u32			num_args;
+	u32			writable_size;
+} __aligned(32);
+
 #endif
