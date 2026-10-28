@@ -212,4 +212,7 @@ static inline struct metadata_dst *ipv6_tun_rx_dst(struct sk_buff *skb,
 				  0, ip6_flowlabel(ip6h), flags, tunnel_id,
 				  md_size);
 }
-#endif /* __NET_DST_METADATA_H */
+/* 4.14 compat: 4.19 API */
+void metadata_dst_free_percpu(struct metadata_dst __percpu *md_dst);
+
+#endif
