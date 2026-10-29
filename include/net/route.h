@@ -348,5 +348,4 @@ static inline int ip4_dst_hoplimit(const struct dst_entry *dst)
 		hoplimit = net->ipv4.sysctl_ip_default_ttl;
 	return hoplimit;
 }
-
 #endif	/* _ROUTE_H */

@@ -270,6 +270,13 @@ struct tcp_sock {
 				 * receiver in Recovery. */
 	u32	prr_out;	/* Total number of pkts sent during Recovery. */
 	u32	delivered;	/* Total data packets delivered incl. rexmits */
+	u32	delivered_ce;	/* Like above but for ECN Marked packets. */ /* 4.14 compat */
+	u32	dsack_dups;	/* RFC4898 tcpEStatsStackDSACKDups */ /* 4.14 compat */
+	u8	bpf_sock_ops_cb_flags; /* Control calling BPF programs
+					* via setsockopt BPF_SOCK_OPS_*,
+					* 4.14 compat
+					*/
+#define BPF_SOCK_OPS_TEST_FLAG(TP, ARG) (TP->bpf_sock_ops_cb_flags & ARG)
 	u32	lost;		/* Total data packets lost incl. rexmits */
 	u32	app_limited;	/* limited until "delivered" reaches this val */
 	u64	first_tx_mstamp;  /* start of window send phase */
@@ -362,7 +369,7 @@ struct tcp_sock {
 	 * socket. Used to retransmit SYNACKs etc.
 	 */
 	struct request_sock *fastopen_rsk;
-	u32	*saved_syn;
+	struct saved_syn *saved_syn; /* 4.14 compat: 5.x type */
 };
 
 enum tsq_enum {
@@ -437,6 +444,13 @@ static inline void tcp_saved_syn_free(struct tcp_sock *tp)
 {
 	kfree(tp->saved_syn);
 	tp->saved_syn = NULL;
+}
+
+/* 4.14 compat: 5.x helper */
+static inline u32 tcp_saved_syn_len(const struct saved_syn *saved_syn)
+{
+	return saved_syn->mac_hdrlen + saved_syn->network_hdrlen +
+		saved_syn->tcp_hdrlen;
 }
 
 struct sk_buff *tcp_get_timestamping_opt_stats(const struct sock *sk);

@@ -47,6 +47,14 @@ int inet_rtx_syn_ack(const struct sock *parent, struct request_sock *req);
 
 /* struct request_sock - mini sock to represent a connection request
  */
+/* 4.14 compat: 5.x saved_syn */
+struct saved_syn {
+	u32 mac_hdrlen;
+	u32 network_hdrlen;
+	u32 tcp_hdrlen;
+	u8 data[];
+};
+
 struct request_sock {
 	struct sock_common		__req_common;
 #define rsk_refcnt			__req_common.skc_refcnt
@@ -64,7 +72,7 @@ struct request_sock {
 	struct timer_list		rsk_timer;
 	const struct request_sock_ops	*rsk_ops;
 	struct sock			*sk;
-	u32				*saved_syn;
+	struct saved_syn	*saved_syn; /* 4.14 compat: 5.x type */
 	u32				secid;
 	u32				peer_secid;
 };

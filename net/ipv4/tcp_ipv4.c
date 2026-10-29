@@ -378,6 +378,26 @@ EXPORT_SYMBOL(tcp_req_err);
  *
  */
 
+/* 4.14 compat: 5.x BPF SKB-less helper */
+static const struct tcp_request_sock_ops tcp_request_sock_ipv4_ops; /* fwd decl */
+u16 tcp_v4_get_syncookie(struct sock *sk, struct iphdr *iph,
+			 struct tcphdr *th, u32 *cookie)
+{
+#ifdef CONFIG_SYN_COOKIES
+	u16 mss;
+
+	mss = tcp_get_syncookie_mss(&tcp_request_sock_ops,
+				    &tcp_request_sock_ipv4_ops, sk, th);
+	if (mss) {
+		*cookie = __cookie_v4_init_sequence(iph, th, &mss);
+		tcp_synq_overflow(sk);
+	}
+	return mss;
+#else
+	return 0;
+#endif
+}
+
 void tcp_v4_err(struct sk_buff *icmp_skb, u32 info)
 {
 	const struct iphdr *iph = (const struct iphdr *)icmp_skb->data;

@@ -291,4 +291,18 @@ flow_dissector_init_keys(struct flow_dissector_key_control *key_control,
 	memset(key_basic, 0, sizeof(*key_basic));
 }
 
+/* 4.14 compat: 5.x BPF flow dissector support */
+struct bpf_flow_dissector {
+	struct bpf_flow_keys	*flow_keys;
+	const struct sk_buff	*skb;
+	void			*data;
+	void			*data_end;
+};
+
+#ifdef CONFIG_BPF_SYSCALL
+struct bpf_prog; /* 4.14 compat: forward decl for -Werror */
+int flow_dissector_bpf_prog_attach_check(struct net *net,
+					 struct bpf_prog *prog);
+#endif /* CONFIG_BPF_SYSCALL */
+
 #endif

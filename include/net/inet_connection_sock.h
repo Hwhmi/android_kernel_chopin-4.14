@@ -111,6 +111,8 @@ struct inet_connection_sock {
 	__u8			  icsk_syn_retries;
 	__u8			  icsk_probes_out;
 	__u16			  icsk_ext_hdr_len;
+	u32			  icsk_delack_max; /* 4.14 compat: bpf_tcp_sock ctx */
+	u32			  icsk_rto_min;   /* 4.14 compat */
 	struct {
 		__u8		  pending;	 /* ACK is pending			   */
 		__u8		  quick;	 /* Scheduled number of quick acks	   */

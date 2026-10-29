@@ -6305,19 +6305,117 @@ static bool tcp_syn_flood_action(const struct sock *sk,
 	return want_cookie;
 }
 
+/* 4.14 compat: 5.x skb-less variant used by the BPF get_syncookie helper */
+static bool tcp_syn_flood_action_sk(const struct sock *sk, const char *proto)
+{
+	struct request_sock_queue *queue = &inet_csk(sk)->icsk_accept_queue;
+	const char *msg = "Dropping request";
+	bool want_cookie = false;
+	struct net *net = sock_net(sk);
+
+#ifdef CONFIG_SYN_COOKIES
+	if (net->ipv4.sysctl_tcp_syncookies) {
+		msg = "Sending cookies";
+		want_cookie = true;
+		__NET_INC_STATS(sock_net(sk), LINUX_MIB_TCPREQQFULLDOCOOKIES);
+	} else
+#endif
+		__NET_INC_STATS(sock_net(sk), LINUX_MIB_TCPREQQFULLDROP);
+
+	if (!queue->synflood_warned &&
+	    net->ipv4.sysctl_tcp_syncookies != 2 &&
+	    xchg(&queue->synflood_warned, 1) == 0)
+		pr_info("%s: Possible SYN flooding on port %d. %s.  Check SNMP counters.\n",
+			proto, ntohs(inet_sk(sk)->inet_sport), msg);
+
+	return want_cookie;
+}
+
+/* 4.14 compat: 5.x helper to parse MSS out of a header (BPF uses it) */
+u16 tcp_parse_mss_option(const struct tcphdr *th, u16 user_mss)
+{
+	const unsigned char *ptr = (const unsigned char *)(th + 1);
+	int length = (th->doff * 4) - sizeof(struct tcphdr);
+	u16 mss = 0;
+
+	while (length > 0) {
+		int opcode = *ptr++;
+		int opsize;
+
+		switch (opcode) {
+		case TCPOPT_EOL:
+			return mss;
+		case TCPOPT_NOP:	/* Ref: RFC 793 section 3.1 */
+			length--;
+			continue;
+		default:
+			opsize = *ptr++;
+			if (opsize < 2) /* "silly" */
+				return mss;
+			if (opsize > length)
+				return mss; /* don't parse partial options */
+			if (opcode == TCPOPT_MSS && opsize == TCPOLEN_MSS) {
+				u16 in_mss = get_unaligned_be16(ptr);
+
+				if (in_mss) {
+					if (user_mss)
+						mss = min(user_mss, in_mss);
+					else
+						mss = in_mss;
+				}
+			}
+			ptr += opsize - 2;
+			length -= opsize;
+		}
+	}
+	return mss;
+}
+EXPORT_SYMBOL_GPL(tcp_parse_mss_option);
+
+/* 4.14 compat: 5.x BPF SKB-less helper */
+u16 tcp_get_syncookie_mss(struct request_sock_ops *rsk_ops,
+			  const struct tcp_request_sock_ops *af_ops,
+			  struct sock *sk, struct tcphdr *th)
+{
+	struct tcp_sock *tp = tcp_sk(sk);
+	u16 mss;
+
+	if (READ_ONCE(sock_net(sk)->ipv4.sysctl_tcp_syncookies) != 2 &&
+	    !inet_csk_reqsk_queue_is_full(sk))
+		return 0;
+
+	if (!tcp_syn_flood_action_sk(sk, rsk_ops->slab_name))
+		return 0;
+
+	if (sk_acceptq_is_full(sk)) {
+		NET_INC_STATS(sock_net(sk), LINUX_MIB_LISTENOVERFLOWS);
+		return 0;
+	}
+
+	mss = tcp_parse_mss_option(th, tp->rx_opt.user_mss);
+	if (!mss)
+		mss = af_ops->mss_clamp;
+
+	return mss;
+}
+EXPORT_SYMBOL_GPL(tcp_get_syncookie_mss);
+
 static void tcp_reqsk_record_syn(const struct sock *sk,
 				 struct request_sock *req,
 				 const struct sk_buff *skb)
 {
 	if (tcp_sk(sk)->save_syn) {
+		/* 4.14 compat: 5.x saved_syn layout */
+		struct saved_syn *saved_syn;
 		u32 len = skb_network_header_len(skb) + tcp_hdrlen(skb);
-		u32 *copy;
 
-		copy = kmalloc(len + sizeof(u32), GFP_ATOMIC);
-		if (copy) {
-			copy[0] = len;
-			memcpy(&copy[1], skb_network_header(skb), len);
-			req->saved_syn = copy;
+		saved_syn = kmalloc(sizeof(*saved_syn) + len, GFP_ATOMIC);
+		if (saved_syn) {
+			saved_syn->mac_hdrlen = skb_mac_header_len(skb);
+			saved_syn->network_hdrlen = skb_network_header_len(skb);
+			saved_syn->tcp_hdrlen = tcp_hdrlen(skb);
+			memcpy(saved_syn->data, skb_network_header(skb), len);
+			req->saved_syn = saved_syn;
 		}
 	}
 }

@@ -411,6 +411,9 @@ static u64 tcp_compute_delivery_rate(const struct tcp_sock *tp)
  */
 void tcp_init_sock(struct sock *sk)
 {
+	/* 4.14 compat: 4.19 per-sock bounds */
+	inet_csk(sk)->icsk_delack_max = TCP_DELACK_MAX;
+	inet_csk(sk)->icsk_rto_min = TCP_RTO_MIN;
 	struct inet_connection_sock *icsk = inet_csk(sk);
 	struct tcp_sock *tp = tcp_sk(sk);
 
@@ -3213,20 +3216,22 @@ static int do_tcp_getsockopt(struct sock *sk, int level,
 
 		lock_sock(sk);
 		if (tp->saved_syn) {
-			if (len < tp->saved_syn[0]) {
-				if (put_user(tp->saved_syn[0], optlen)) {
+			/* 4.14 compat: 5.x saved_syn layout */
+			if (len < tcp_saved_syn_len(tp->saved_syn)) {
+				if (put_user(tcp_saved_syn_len(tp->saved_syn),
+					     optlen)) {
 					release_sock(sk);
 					return -EFAULT;
 				}
 				release_sock(sk);
 				return -EINVAL;
 			}
-			len = tp->saved_syn[0];
+			len = tcp_saved_syn_len(tp->saved_syn);
 			if (put_user(len, optlen)) {
 				release_sock(sk);
 				return -EFAULT;
 			}
-			if (copy_to_user(optval, tp->saved_syn + 1, len)) {
+			if (copy_to_user(optval, tp->saved_syn->data, len)) {
 				release_sock(sk);
 				return -EFAULT;
 			}
