@@ -3909,9 +3909,9 @@ drop:
 }
 
 static u32 netif_receive_generic_xdp(struct sk_buff *skb,
+				     struct xdp_buff *xdp, /* 4.14 compat: 5.x out-param */
 				     struct bpf_prog *xdp_prog)
 {
-	struct xdp_buff xdp;
 	u32 act = XDP_DROP;
 	void *orig_data;
 	int hlen, off;
@@ -3931,14 +3931,14 @@ static u32 netif_receive_generic_xdp(struct sk_buff *skb,
 	 */
 	mac_len = skb->data - skb_mac_header(skb);
 	hlen = skb_headlen(skb) + mac_len;
-	xdp.data = skb->data - mac_len;
-	xdp.data_end = xdp.data + hlen;
-	xdp.data_hard_start = skb->data - skb_headroom(skb);
-	orig_data = xdp.data;
+	xdp->data = skb->data - mac_len;
+	xdp->data_end = xdp->data + hlen;
+	xdp->data_hard_start = skb->data - skb_headroom(skb);
+	orig_data = xdp->data;
 
-	act = bpf_prog_run_xdp(xdp_prog, &xdp);
+	act = bpf_prog_run_xdp(xdp_prog, xdp);
 
-	off = xdp.data - orig_data;
+	off = xdp->data - orig_data;
 	if (off > 0)
 		__skb_pull(skb, off);
 	else if (off < 0)
@@ -3999,14 +3999,15 @@ static struct static_key generic_xdp_needed __read_mostly;
 int do_xdp_generic(struct bpf_prog *xdp_prog, struct sk_buff *skb)
 {
 	if (xdp_prog) {
-		u32 act = netif_receive_generic_xdp(skb, xdp_prog);
+		struct xdp_buff xdp; /* 4.14 compat: 5.x passes buff to redirect */
+		u32 act = netif_receive_generic_xdp(skb, &xdp, xdp_prog);
 		int err;
 
 		if (act != XDP_PASS) {
 			switch (act) {
 			case XDP_REDIRECT:
 				err = xdp_do_generic_redirect(skb->dev, skb,
-							      xdp_prog);
+							      &xdp, xdp_prog);
 				if (err)
 					goto out_redir;
 			/* fallthru to submit skb */
@@ -8375,6 +8376,9 @@ struct net_device *alloc_netdev_mqs(int sizeof_priv, const char *name,
 	if (!dev->pcpu_refcnt)
 		goto free_dev;
 
+	/* 4.14 compat: 4.19 devmap lazily allocates dev->xdp_bulkq, the
+	 * struct is zeroed here and freed in free_netdev. */
+
 	if (dev_addr_init(dev))
 		goto free_pcpu;
 
@@ -8469,6 +8473,9 @@ void free_netdev(struct net_device *dev)
 
 	free_percpu(dev->pcpu_refcnt);
 	dev->pcpu_refcnt = NULL;
+	/* 4.14 compat: 4.19 devmap bulk queue */
+	free_percpu(dev->xdp_bulkq);
+	dev->xdp_bulkq = NULL;
 
 	prog = rcu_dereference_protected(dev->xdp_prog, 1);
 	if (prog) {

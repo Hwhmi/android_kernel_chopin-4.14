@@ -656,14 +656,6 @@ out:
 	return ret;
 }
 
-static inline void sock_valbool_flag(struct sock *sk, int bit, int valbool)
-{
-	if (valbool)
-		sock_set_flag(sk, bit);
-	else
-		sock_reset_flag(sk, bit);
-}
-
 bool sk_mc_loop(struct sock *sk)
 {
 	if (dev_recursion_level())
@@ -1322,7 +1314,7 @@ int sock_getsockopt(struct socket *sock, int level, int optname,
 		return sock_getbindtodevice(sk, optval, optlen, len);
 
 	case SO_GET_FILTER:
-		len = sk_get_filter(sk, (struct sock_filter __user *)optval, len);
+		len = sk_get_filter(sk, USER_SOCKPTR((struct sock_filter __user *)optval), len);
 		if (len < 0)
 			return len;
 
@@ -1901,6 +1893,16 @@ void sock_efree(struct sk_buff *skb)
 }
 EXPORT_SYMBOL(sock_efree);
 
+/* 4.14 compat: 5.x destructor for prefetched (BPF) skbs */
+#ifdef CONFIG_INET
+void sock_pfree(struct sk_buff *skb)
+{
+	if (sk_is_refcounted(skb->sk))
+		sock_gen_put(skb->sk);
+}
+EXPORT_SYMBOL(sock_pfree);
+#endif
+
 kuid_t sock_i_uid(struct sock *sk)
 {
 	kuid_t uid;
@@ -2384,7 +2386,7 @@ suppress_allocation:
 			return 1;
 	}
 
-	trace_sock_exceed_buf_limit(sk, prot, allocated);
+	trace_sock_exceed_buf_limit(sk, prot, allocated, kind); /* 4.14 compat: 5.10 trace adds kind */
 
 	sk_memory_allocated_sub(sk, amt);
 
@@ -3389,3 +3391,19 @@ bool sk_busy_loop_end(void *p, unsigned long start_time)
 }
 EXPORT_SYMBOL(sk_busy_loop_end);
 #endif /* CONFIG_NET_RX_BUSY_POLL */
+
+/* 4.14 compat: 4.19 helper used by BPF bind/connect hooks */
+int sock_bindtoindex(struct sock *sk, int ifindex, bool lock_sk)
+{
+	if (ifindex < 0)
+		return -EINVAL;
+
+	if (lock_sk)
+		lock_sock(sk);
+	sk->sk_bound_dev_if = ifindex;
+	if (lock_sk)
+		release_sock(sk);
+
+	return 0;
+}
+EXPORT_SYMBOL(sock_bindtoindex);

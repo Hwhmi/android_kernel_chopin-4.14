@@ -214,6 +214,9 @@ struct sock_common {
 		struct hlist_nulls_node skc_nulls_node;
 	};
 	int			skc_tx_queue_mapping;
+#ifdef CONFIG_XPS /* 4.14 compat: 4.19 field, needed by bpf xdp helpers */
+	unsigned short		skc_rx_queue_mapping;
+#endif
 	union {
 		int		skc_incoming_cpu;
 		u32		skc_rcv_wnd;
@@ -348,6 +351,8 @@ struct sock {
 #define sk_v6_daddr		__sk_common.skc_v6_daddr
 #define sk_v6_rcv_saddr	__sk_common.skc_v6_rcv_saddr
 #define sk_cookie		__sk_common.skc_cookie
+#define sk_rx_queue_mapping	__sk_common.skc_rx_queue_mapping /* 4.14 compat */
+#define NO_QUEUE_MAPPING	((unsigned short)~0U)
 #define sk_incoming_cpu		__sk_common.skc_incoming_cpu
 #define sk_flags		__sk_common.skc_flags
 #define sk_rxhash		__sk_common.skc_rxhash
@@ -441,9 +446,11 @@ struct sock {
 				sk_kern_sock : 1,
 				sk_no_check_tx : 1,
 				sk_no_check_rx : 1,
-				sk_userlocks : 4,
-				sk_protocol  : 8,
-				sk_type      : 16;
+				sk_userlocks : 4;
+	/* 4.14 compat: 4.19 made sk_type/sk_protocol full u16s (BPF needs
+	 * addressable members); consumes the previously free bits. */
+	u16			sk_type;
+	u16			sk_protocol;
 #define SK_PROTOCOL_MAX U8_MAX
 	u16			sk_gso_max_segs;
 	unsigned long	        sk_lingertime;
@@ -1548,6 +1555,8 @@ struct sk_buff *sock_omalloc(struct sock *sk, unsigned long size,
 void skb_orphan_partial(struct sk_buff *skb);
 void sock_rfree(struct sk_buff *skb);
 void sock_efree(struct sk_buff *skb);
+/* 4.14 compat: 5.x destructor for prefetched (BPF) skbs */
+void sock_pfree(struct sk_buff *skb);
 #ifdef CONFIG_INET
 void sock_edemux(struct sk_buff *skb);
 #else
@@ -1682,6 +1691,38 @@ static inline void sk_tx_queue_clear(struct sock *sk)
 {
 	sk->sk_tx_queue_mapping = -1;
 }
+
+/* 4.14 compat: rx queue mapping accessors (4.19) */
+static inline void sk_rx_queue_set(struct sock *sk, const struct sk_buff *skb)
+{
+#ifdef CONFIG_XPS
+	if (skb_rx_queue_recorded(skb)) {
+		u16 rx_queue = skb_get_rx_queue(skb);
+
+		if (WARN_ON_ONCE(rx_queue == NO_QUEUE_MAPPING))
+			return;
+
+		sk->sk_rx_queue_mapping = rx_queue;
+	}
+#endif
+}
+
+static inline void sk_rx_queue_clear(struct sock *sk)
+{
+#ifdef CONFIG_XPS
+	sk->sk_rx_queue_mapping = NO_QUEUE_MAPPING;
+#endif
+}
+
+#ifdef CONFIG_XPS
+static inline int sk_rx_queue_get(const struct sock *sk)
+{
+	if (sk && sk->sk_rx_queue_mapping != NO_QUEUE_MAPPING)
+		return sk->sk_rx_queue_mapping;
+
+	return -1;
+}
+#endif
 
 static inline int sk_tx_queue_get(const struct sock *sk)
 {
@@ -1836,6 +1877,7 @@ static inline void sk_dst_confirm(struct sock *sk)
 	if (!sk->sk_dst_pending_confirm)
 		sk->sk_dst_pending_confirm = 1;
 }
+
 
 static inline void sock_confirm_neigh(struct sk_buff *skb, struct neighbour *n)
 {
@@ -2368,6 +2410,13 @@ static inline bool sk_fullsock(const struct sock *sk)
 	return (1 << sk->sk_state) & ~(TCPF_TIME_WAIT | TCPF_NEW_SYN_RECV);
 }
 
+/* 4.14 compat: 4.19 helper, only full sockets have sk->sk_flags */
+static inline bool
+sk_is_refcounted(struct sock *sk)
+{
+	return !sk_fullsock(sk) || !sock_flag(sk, SOCK_RCU_FREE);
+}
+
 /* This helper checks if a socket is a LISTEN or NEW_SYN_RECV
  * SYNACK messages can be attached to either ones (depending on SYNCOOKIE)
  */
@@ -2432,5 +2481,40 @@ extern int sysctl_optmem_max;
 
 extern __u32 sysctl_wmem_default;
 extern __u32 sysctl_rmem_default;
+
+/* 4.14 compat: 4.19 moved this helper to sock.h (BPF uses it too) */
+static inline void sock_valbool_flag(struct sock *sk, int bit, int valbool)
+{
+	if (valbool)
+		sock_set_flag(sk, bit);
+	else
+		sock_reset_flag(sk, bit);
+}
+
+int sock_bindtoindex(struct sock *sk, int ifindex, bool lock_sk);
+
+/* 4.14 compat: 4.19 trace helpers (no per-netns sysctl offset in 4.14) */
+static inline int sk_get_wmem0(const struct sock *sk, const struct proto *proto)
+{
+	return *proto->sysctl_wmem;
+}
+
+static inline int sk_get_rmem0(const struct sock *sk, const struct proto *proto)
+{
+	return *proto->sysctl_rmem;
+}
+
+
+/* 4.14 compat: sk_user_data low-bit tags (5.x) used by bpf reuseport_array */
+#define SK_USER_DATA_NOCOPY	1UL
+#define SK_USER_DATA_BPF	2UL	/* Managed by BPF */
+#define SK_USER_DATA_PTRMASK	~(SK_USER_DATA_NOCOPY | SK_USER_DATA_BPF)
+
+#ifndef sk_user_data_is_nocopy
+static inline bool sk_user_data_is_nocopy(const struct sock *sk)
+{
+	return ((uintptr_t)sk->sk_user_data & SK_USER_DATA_NOCOPY);
+}
+#endif
 
 #endif	/* _SOCK_H */
