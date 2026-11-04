@@ -219,6 +219,7 @@ struct bpf_prog_aux {
 	struct bpf_map **used_maps;
 	struct bpf_prog *prog;
 	struct user_struct *user;
+	struct bpf_dev_offload *offload;
 #ifdef CONFIG_SECURITY
 	void *security;
 #endif
