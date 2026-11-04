@@ -10,6 +10,7 @@
  * General Public License for more details.
  */
 #include <linux/bpf.h>
+#include <linux/ctype.h>
 #include <linux/bpf_trace.h>
 #include <linux/btf.h>
 #include <linux/syscalls.h>
