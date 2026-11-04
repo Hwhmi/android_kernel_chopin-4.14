@@ -45,3 +45,6 @@ DECLARE_RESTRICTED_HOOK(android_vh_binder_preset,
 
 /* This part must be outside protection */
 #include <trace/define_trace.h>
+
+/* Do not leak TRACE_INCLUDE_PATH into later trace/events/*.h includes */
+#undef TRACE_INCLUDE_PATH
