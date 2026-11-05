@@ -58,6 +58,7 @@
 #include "mtk_disp_aal.h"
 #include "mtk_drm_mmp.h"
 #include "mtk_drm_trace.h"
+#include "oplus_display_compat.h"
 /* *******Panel Master******** */
 #include "mtk_fbconfig_kdebug.h"
 #ifdef CONFIG_MTK_HDMI_SUPPORT
@@ -3199,6 +3200,11 @@ static const struct drm_ioctl_desc mtk_ioctls[] = {
 #endif
 	DRM_IOCTL_DEF_DRV(MTK_DEBUG_LOG, mtk_disp_ioctl_debug_log_switch,
 					DRM_UNLOCKED),
+
+	DRM_IOCTL_DEF_DRV(MTK_GET_PQ_CAPS, mtk_drm_ioctl_get_pq_caps,
+			  DRM_UNLOCKED),
+	DRM_IOCTL_DEF_DRV(MTK_SET_PQ_CAPS, mtk_drm_ioctl_set_pq_caps,
+			  DRM_UNLOCKED),
 };
 
 #if IS_ENABLED(CONFIG_COMPAT)
@@ -3358,6 +3364,10 @@ static int mtk_drm_bind(struct device *dev)
 	if (ret < 0)
 		goto err_deinit;
 
+	ret = oplus_display_compat_init(drm);
+	if (ret < 0)
+		DDPPR_ERR("failed to init oplus display compat sysfs: %d\n", ret);
+
 	mtk_layering_rule_init(drm);
 	crtc = list_first_entry(&(drm)->mode_config.crtc_list, typeof(*crtc),
 				head);
@@ -3382,6 +3392,7 @@ static void mtk_drm_unbind(struct device *dev)
 {
 	struct mtk_drm_private *private = dev_get_drvdata(dev);
 
+	oplus_display_compat_deinit();
 	drm_dev_unregister(private->drm);
 	drm_dev_unref(private->drm);
 	private->drm = NULL;
@@ -3910,8 +3921,13 @@ err_pm:
 	pm_runtime_disable(dev);
 err_node:
 	of_node_put(private->mutex_node);
-	for (i = 0; i < DDP_COMPONENT_ID_MAX; i++)
+	for (i = 0; i < DDP_COMPONENT_ID_MAX; i++) {
 		of_node_put(private->comp_node[i]);
+		if (private->ddp_comp[i]) {
+			put_device(private->ddp_comp[i]->larb_dev);
+			private->ddp_comp[i] = NULL;
+		}
+	}
 	return ret;
 }
 

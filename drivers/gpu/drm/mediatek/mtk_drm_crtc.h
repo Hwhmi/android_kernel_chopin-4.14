@@ -897,6 +897,7 @@ unsigned int mtk_drm_dump_wk_lock(struct mtk_drm_private *priv,
 char *mtk_crtc_index_spy(int crtc_index);
 bool mtk_drm_get_hdr_property(void);
 int mtk_drm_aod_setbacklight(struct drm_crtc *crtc, unsigned int level);
+int oplus_mtk_drm_setbacklight(struct drm_crtc *crtc, unsigned int level);
 
 int mtk_drm_crtc_wait_blank(struct mtk_drm_crtc *mtk_crtc);
 void mtk_drm_crtc_init_para(struct drm_crtc *crtc);
@@ -925,4 +926,8 @@ void mtk_crtc_stop_for_pm(struct mtk_drm_crtc *mtk_crtc, bool need_wait);
 bool mtk_crtc_frame_buffer_existed(void);
 int m4u_sec_init(void);
 
+int mtk_drm_ioctl_get_pq_caps(struct drm_device *dev, void *data,
+	struct drm_file *file_priv);
+int mtk_drm_ioctl_set_pq_caps(struct drm_device *dev, void *data,
+	struct drm_file *file_priv);
 #endif /* MTK_DRM_CRTC_H */
