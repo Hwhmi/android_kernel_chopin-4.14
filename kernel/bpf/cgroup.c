@@ -180,11 +180,15 @@ cleanup:
  *                         propagate the change to descendants
  * @cgrp: The cgroup which descendants to traverse
  * @prog: A program to attach
+ * @replace_prog: Previously attached program to replace if BPF_F_REPLACE
+ *                is set
  * @type: Type of attach operation
+ * @flags: Option flags
  *
  * Must be called with cgroup_mutex held.
  */
 int __cgroup_bpf_attach(struct cgroup *cgrp, struct bpf_prog *prog,
+			struct bpf_prog *replace_prog,
 			enum bpf_attach_type type, u32 flags)
 {
 	struct list_head *progs = &cgrp->bpf.progs[type];
@@ -192,17 +196,23 @@ int __cgroup_bpf_attach(struct cgroup *cgrp, struct bpf_prog *prog,
 	struct cgroup_subsys_state *css;
 	struct bpf_prog_list *pl;
 	bool pl_was_allocated;
+	u32 saved_flags = (flags & (BPF_F_ALLOW_OVERRIDE | BPF_F_ALLOW_MULTI));
 	u32 old_flags;
 	int err;
 
-	if ((flags & BPF_F_ALLOW_OVERRIDE) && (flags & BPF_F_ALLOW_MULTI))
+	if (((flags & BPF_F_ALLOW_OVERRIDE) && (flags & BPF_F_ALLOW_MULTI)) ||
+	    ((flags & BPF_F_REPLACE) && !(flags & BPF_F_ALLOW_MULTI)))
 		/* invalid combination */
 		return -EINVAL;
 
-	if (!hierarchy_allows_attach(cgrp, type, flags))
+	if (!!replace_prog != !!(flags & BPF_F_REPLACE))
+		/* replace_prog implies BPF_F_REPLACE, and vice versa */
+		return -EINVAL;
+
+	if (!hierarchy_allows_attach(cgrp, type, saved_flags))
 		return -EPERM;
 
-	if (!list_empty(progs) && cgrp->bpf.flags[type] != flags)
+	if (!list_empty(progs) && cgrp->bpf.flags[type] != saved_flags)
 		/* Disallow attaching non-overridable on top
 		 * of existing overridable in this cgroup.
 		 * Disallow attaching multi-prog if overridable or none
@@ -212,7 +222,20 @@ int __cgroup_bpf_attach(struct cgroup *cgrp, struct bpf_prog *prog,
 	if (prog_list_length(progs) >= BPF_CGROUP_MAX_PROGS)
 		return -E2BIG;
 
-	if (flags & BPF_F_ALLOW_MULTI) {
+	if (flags & BPF_F_REPLACE) {
+		bool found = false;
+
+		list_for_each_entry(pl, progs, node) {
+			if (pl->prog == replace_prog) {
+				found = true;
+				break;
+			}
+		}
+		if (!found)
+			return -ENOENT;
+		/* keep pl; the old prog is replaced below */
+		pl_was_allocated = false;
+	} else if (flags & BPF_F_ALLOW_MULTI) {
 		list_for_each_entry(pl, progs, node)
 			if (pl->prog == prog)
 				/* disallow attaching the same prog twice */
@@ -239,8 +262,14 @@ int __cgroup_bpf_attach(struct cgroup *cgrp, struct bpf_prog *prog,
 		pl->prog = prog;
 	}
 
+	/* for the BPF_F_REPLACE case swap the program in place */
+	if (flags & BPF_F_REPLACE) {
+		old_prog = pl->prog;
+		pl->prog = prog;
+	}
+
 	old_flags = cgrp->bpf.flags[type];
-	cgrp->bpf.flags[type] = flags;
+	cgrp->bpf.flags[type] = saved_flags;
 
 	/* allocate and recompute effective prog arrays */
 	css_for_each_descendant_pre(css, &cgrp->self) {
