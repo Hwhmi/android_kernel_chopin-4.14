@@ -1309,7 +1309,7 @@ static int bpf_prog_attach_check_attach_type(const struct bpf_prog *prog,
 	}
 }
 
-#define BPF_PROG_ATTACH_LAST_FIELD attach_flags
+#define BPF_PROG_ATTACH_LAST_FIELD replace_bpf_fd
 
 static int sockmap_get_from_fd(const union bpf_attr *attr, bool attach)
 {
@@ -1346,12 +1346,12 @@ static int sockmap_get_from_fd(const union bpf_attr *attr, bool attach)
 }
 
 #define BPF_F_ATTACH_MASK \
-	(BPF_F_ALLOW_OVERRIDE | BPF_F_ALLOW_MULTI)
+	(BPF_F_ALLOW_OVERRIDE | BPF_F_ALLOW_MULTI | BPF_F_REPLACE)
 
 static int bpf_prog_attach(const union bpf_attr *attr)
 {
 	enum bpf_prog_type ptype;
-	struct bpf_prog *prog;
+	struct bpf_prog *prog, *replace_prog = NULL;
 	struct cgroup *cgrp;
 	int ret;
 
@@ -1370,7 +1370,19 @@ static int bpf_prog_attach(const union bpf_attr *attr)
 		ptype = BPF_PROG_TYPE_CGROUP_SKB;
 		break;
 	case BPF_CGROUP_INET_SOCK_CREATE:
+	case BPF_CGROUP_INET4_POST_BIND:
+	case BPF_CGROUP_INET6_POST_BIND:
 		ptype = BPF_PROG_TYPE_CGROUP_SOCK;
+		break;
+	case BPF_CGROUP_INET4_BIND:
+	case BPF_CGROUP_INET6_BIND:
+	case BPF_CGROUP_INET4_CONNECT:
+	case BPF_CGROUP_INET6_CONNECT:
+	case BPF_CGROUP_UDP4_SENDMSG:
+	case BPF_CGROUP_UDP6_SENDMSG:
+	case BPF_CGROUP_UDP4_RECVMSG:
+	case BPF_CGROUP_UDP6_RECVMSG:
+		ptype = BPF_PROG_TYPE_CGROUP_SOCK_ADDR;
 		break;
 	case BPF_CGROUP_SOCK_OPS:
 		ptype = BPF_PROG_TYPE_SOCK_OPS;
@@ -1386,23 +1398,33 @@ static int bpf_prog_attach(const union bpf_attr *attr)
 	if (IS_ERR(prog))
 		return PTR_ERR(prog);
 
+	if (attr->attach_flags & BPF_F_REPLACE) {
+		replace_prog = bpf_prog_get_type(attr->replace_bpf_fd, ptype);
+		if (IS_ERR(replace_prog)) {
+			bpf_prog_put(prog);
+			return PTR_ERR(replace_prog);
+		}
+	}
+
 	if (bpf_prog_attach_check_attach_type(prog, attr->attach_type)) {
-		bpf_prog_put(prog);
-		return -EINVAL;
+		ret = -EINVAL;
+		goto put_progs;
 	}
 
 	cgrp = cgroup_get_from_fd(attr->target_fd);
 	if (IS_ERR(cgrp)) {
-		bpf_prog_put(prog);
-		return PTR_ERR(cgrp);
+		ret = PTR_ERR(cgrp);
+		goto put_progs;
 	}
 
-	ret = cgroup_bpf_attach(cgrp, prog, attr->attach_type,
+	ret = cgroup_bpf_attach(cgrp, prog, replace_prog, attr->attach_type,
 				attr->attach_flags);
-	if (ret)
-		bpf_prog_put(prog);
 	cgroup_put(cgrp);
 
+put_progs:
+	bpf_prog_put(prog);
+	if (replace_prog)
+		bpf_prog_put(replace_prog);
 	return ret;
 }
 
