@@ -2637,13 +2637,17 @@ static void mtk_crtc_update_ddp_state(struct drm_crtc *crtc,
 	unsigned int prop_lye_idx;
 	unsigned int pan_disp_frame_weight = 4;
 	struct drm_device *dev = crtc->dev;
+	bool mode_switched = false;
 
 	mutex_lock(&mtk_drm->lyeblob_list_mutex);
 	prop_lye_idx = crtc_state->prop_val[CRTC_PROP_LYE_IDX];
 	/*set_hrt_bw for pan display ,set 4 for two RGB layer*/
-	if (index == 0 && prop_lye_idx == 0) {
-		DDPINFO("%s prop_lye_idx is 0, mode switch from %u to %u\n",
-			__func__,
+	if (index == 0 &&
+	    (prop_lye_idx == 0 ||
+	     old_mtk_state->prop_val[CRTC_PROP_DISP_MODE_IDX] !=
+	     crtc_state->prop_val[CRTC_PROP_DISP_MODE_IDX])) {
+		DDPINFO("%s prop_lye_idx is %u, mode switch from %u to %u\n",
+			__func__, prop_lye_idx,
 			old_mtk_state->prop_val[CRTC_PROP_DISP_MODE_IDX],
 			crtc_state->prop_val[CRTC_PROP_DISP_MODE_IDX]);
 		/*
@@ -2654,16 +2658,18 @@ static void mtk_crtc_update_ddp_state(struct drm_crtc *crtc,
 		mtk_crtc_disp_mode_switch_begin(crtc,
 			old_crtc_state, crtc_state,
 			cmdq_handle);
+		mode_switched = true;
+	}
+	if (index == 0 && prop_lye_idx == 0)
 		mtk_crtc_update_hrt_state(crtc, pan_disp_frame_weight,
 			cmdq_handle);
-	}
 	list_for_each_entry_safe(lyeblob_ids, next, &mtk_drm->lyeblob_head,
 				 list) {
 		if (lyeblob_ids->lye_idx > prop_lye_idx) {
 			DDPMSG("lyeblob lost ID:%d\n", prop_lye_idx);
 			break;
 		} else if (lyeblob_ids->lye_idx == prop_lye_idx) {
-			if (index == 0)
+			if (index == 0 && !mode_switched)
 				mtk_crtc_disp_mode_switch_begin(crtc,
 					old_crtc_state, crtc_state,
 					cmdq_handle);
