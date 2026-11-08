@@ -1,3 +1,3 @@
-[submodule "KernelSU"]
-	path = KernelSU
-	url = https://github.com/backslashxx/KernelSU.git
+[submodule "HYWSU"]
+	path = HYWSU
+	url = https://github.com/Hwhmi/KernelSUU.git
