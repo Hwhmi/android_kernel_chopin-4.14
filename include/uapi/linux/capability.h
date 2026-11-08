@@ -385,6 +385,12 @@ struct vfs_ns_cap_data {
 
 #define CAP_BPF			39
 
+/*
+ * 4.14 NOTE: CAP_PERFMON/CAP_BPF are UAPI numbers only.  CAP_LAST_CAP stays
+ * at CAP_AUDIT_READ (37) on purpose -- see <linux/capability.h>.  Never call
+ * capable(CAP_BPF)/capable(CAP_PERFMON) in kernel code on this tree; use
+ * bpf_capable()/perfmon_capable() instead.
+ */
 #define CAP_LAST_CAP         CAP_AUDIT_READ
 
 #define cap_valid(x) ((x) >= 0 && (x) <= CAP_LAST_CAP)
