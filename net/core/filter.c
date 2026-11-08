@@ -83,8 +83,11 @@ static inline struct neighbour *bpf_ip_neigh_gw4(struct net_device *dev,
 	return neigh;
 }
 
+/* 4.14 compat: accept const daddr; rt6_nexthop()/nexthop are const.
+ * __ipv6_neigh_lookup_noref() and __neigh_create() both take const void *.
+ */
 static inline struct neighbour *bpf_ip_neigh_gw6(struct net_device *dev,
-						 struct in6_addr *daddr)
+						 const struct in6_addr *daddr)
 {
 	struct neighbour *neigh;
 
@@ -102,7 +105,12 @@ static inline __be16 bpf_skb_protocol(const struct sk_buff *skb, bool skip_vlan)
 		return skb_vlan_tag_present(skb) ? skb->vlan_proto :
 						   skb->protocol;
 
-	return vlan_get_protocol(skb);
+	/* 4.14 compat: vlan_get_protocol() takes a non-const skb (4.19
+	 * later made it const).  It only reads skb, so dropping the
+	 * qualifier here is safe; avoids clang's
+	 * -Werror=incompatible-pointer-types-discards-qualifiers.
+	 */
+	return vlan_get_protocol((struct sk_buff *)skb);
 }
 #include <net/ipv6.h>
 #include <net/net_namespace.h>
@@ -4830,8 +4838,9 @@ static int _bpf_setsockopt(struct sock *sk, int level, int optname,
 				cmpxchg(&sk->sk_pacing_status,
 					SK_PACING_NONE,
 					SK_PACING_NEEDED);
+			/* 4.14 compat: sk_max_pacing_rate is u32 here */
 			sk->sk_max_pacing_rate = (val == ~0U) ?
-						 ~0UL : (unsigned int)val;
+						 ~0U : (unsigned int)val;
 			sk->sk_pacing_rate = min(sk->sk_pacing_rate,
 						 sk->sk_max_pacing_rate);
 			break;
