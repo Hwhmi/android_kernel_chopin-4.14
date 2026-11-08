@@ -18,7 +18,7 @@ echo "Kernel OUT Directory Not Found . Making Again"
 mkdir out
 fi
 
-make O=out ARCH=arm64 ares_user_defconfig
+make O=out ARCH=arm64 chopin_user_defconfig
 
 PATH="${PWD}/clang/bin:${PATH}:${PWD}/clang/bin:${PATH}:${PWD}/clang/bin:${PATH}" \
 make -j$(nproc --all) O=out \

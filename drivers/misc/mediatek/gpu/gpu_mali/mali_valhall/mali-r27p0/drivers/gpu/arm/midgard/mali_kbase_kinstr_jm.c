@@ -55,9 +55,7 @@
 #define __static_assert(e, msg, ...) _Static_assert(e, msg)
 #endif
 
-#if KERNEL_VERSION(4, 16, 0) >= LINUX_VERSION_CODE
-typedef unsigned int __poll_t;
-#endif
+/* __poll_t comes from <linux/types.h> (5.10 BPF backport). */
 
 #ifndef ENOTSUP
 #define ENOTSUP EOPNOTSUPP
