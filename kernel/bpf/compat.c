@@ -98,19 +98,7 @@ int bpf_prog_test_run_flow_dissector(struct bpf_prog *prog,
 	return -EOPNOTSUPP;
 }
 
-/* ------------------------------------------------------------------ */
-/* 3. BPF_MAP_TYPE_SK_STORAGE (no net/core/bpf_sk_storage.c on 4.14)   */
-/* ------------------------------------------------------------------ */
-
-static struct bpf_map *compat_map_alloc_unsupp(union bpf_attr *attr)
-{
-	(void)attr;
-	return ERR_PTR(-EOPNOTSUPP);
-}
-
-const struct bpf_map_ops sk_storage_map_ops = {
-	.map_alloc = compat_map_alloc_unsupp,
-};
+/* BPF_MAP_TYPE_SK_STORAGE: real implementation in net/core/bpf_sk_storage.c */
 
 /* ------------------------------------------------------------------ */
 /* 4. tcp_congestion_ops struct_ops (no net/ipv4/bpf_tcp_ca.c)         */
