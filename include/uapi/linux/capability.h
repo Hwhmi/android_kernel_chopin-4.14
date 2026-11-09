@@ -386,12 +386,12 @@ struct vfs_ns_cap_data {
 #define CAP_BPF			39
 
 /*
- * 4.14 NOTE: CAP_PERFMON/CAP_BPF are UAPI numbers only.  CAP_LAST_CAP stays
- * at CAP_AUDIT_READ (37) on purpose -- see <linux/capability.h>.  Never call
- * capable(CAP_BPF)/capable(CAP_PERFMON) in kernel code on this tree; use
- * bpf_capable()/perfmon_capable() instead.
+ * CAP_LAST_CAP is the highest capability the kernel validates, so it must
+ * track the 5.x BPF backport: cap_valid(CAP_PERFMON/CAP_BPF) has to be true
+ * or ns_capable_common() BUG()s on bpfloader's first bpf(BPF_BTF_LOAD).
+ * Keep COMMON_CAP2_PERMS in security/selinux/include/classmap.h in sync.
  */
-#define CAP_LAST_CAP         CAP_AUDIT_READ
+#define CAP_LAST_CAP         CAP_BPF
 
 #define cap_valid(x) ((x) >= 0 && (x) <= CAP_LAST_CAP)
 

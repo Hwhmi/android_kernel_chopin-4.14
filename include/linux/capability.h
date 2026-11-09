@@ -252,33 +252,14 @@ extern int get_vfs_caps_from_disk(const struct dentry *dentry, struct cpu_vfs_ca
 extern int cap_convert_nscap(struct dentry *dentry, void **ivalue, size_t size);
 
 
-/*
- * 4.14 does not implement CAP_PERFMON (38) or CAP_BPF (39): the capability
- * bitmap stops at CAP_LAST_CAP = CAP_AUDIT_READ (37), and
- * kernel/capability.c::ns_capable_common() does
- *   if (!cap_valid(cap)) {
- *       pr_crit("capable() called with invalid cap=%u\n", cap); BUG();
- *   }
- * Calling bpf_capable() from the 5.10 BPF backport therefore BUG()s as soon
- * as bpfloader/btfloader issues its first bpf(BPF_BTF_LOAD/BPF_MAP_CREATE).
- *
- * Raising CAP_LAST_CAP is not an option: security/selinux/include/classmap.h
- * has a build-time "#if CAP_LAST_CAP > CAP_AUDIT_READ / #error", and the
- * on-device sepolicy has no capability2 perms for these caps anyway.
- *
- * Keep the 5.10 UAPI numbers for userspace, but map the kernel-side checks
- * to the only valid equivalent on 4.14: CAP_SYS_ADMIN.  bpfloader, btfloader
- * and netd all run as root, so behaviour is unchanged from the pre-backport
- * kernel.
- */
 static inline bool perfmon_capable(void)
 {
-	return capable(CAP_SYS_ADMIN);
+	return capable(CAP_PERFMON) || capable(CAP_SYS_ADMIN);
 }
 
 static inline bool bpf_capable(void)
 {
-	return capable(CAP_SYS_ADMIN);
+	return capable(CAP_BPF) || capable(CAP_SYS_ADMIN);
 }
 
 #endif /* !_LINUX_CAPABILITY_H */

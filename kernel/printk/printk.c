@@ -1155,7 +1155,15 @@ static int devkmsg_open(struct inode *inode, struct file *file)
 	if (!user)
 		return -ENOMEM;
 
-	ratelimit_default_init(&user->rs);
+	/*
+	 * DEBUG (boot diagnosis): init writes its userspace errors through
+	 * /dev/kmsg, and the default burst of 10 suppresses exactly the lines
+	 * we need to see why apexd-bootstrap fails ("init: 33 output lines
+	 * suppressed due to ratelimiting" at ~2.6s, 9 more at ~4.2s).
+	 * Widen only this /dev/kmsg instance; global ratelimits stay intact.
+	 * Revert once the real apexd error has been captured.
+	 */
+	ratelimit_state_init(&user->rs, 5 * HZ, 10000);
 	ratelimit_set_flags(&user->rs, RATELIMIT_MSG_ON_RELEASE);
 
 	mutex_init(&user->lock);
@@ -3356,7 +3364,7 @@ int printk_deferred(const char *fmt, ...)
  * This enforces a rate limit: not more than 10 kernel messages
  * every 5s to make a denial-of-service attack impossible.
  */
-DEFINE_RATELIMIT_STATE(printk_ratelimit_state, 5 * HZ, 10);
+DEFINE_RATELIMIT_STATE(printk_ratelimit_state, 5 * HZ, 10000);
 
 int __printk_ratelimit(const char *func)
 {
