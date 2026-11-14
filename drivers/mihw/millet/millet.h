@@ -44,6 +44,7 @@ struct millet_sock {
 
 static inline int frozen_task_group(struct task_struct *task)
 {
-	return (freezing(task) || frozen(task) || cgroup_freezing(task));
+	return (freezing(task) || frozen(task) || cgroup_task_freeze(task) ||
+		cgroup_task_frozen(task));
 }
 #endif

@@ -150,6 +150,83 @@ DEFINE_EVENT(cgroup_migrate, cgroup_transfer_tasks,
 	TP_ARGS(dst_cgrp, task, threadgroup)
 );
 
+/*
+ * Tracepoints used by the cgroup v2 freezer.  They intentionally use their
+ * own event classes so that the legacy cgroup events above keep their
+ * original single-cgroup signature on 4.14.
+ */
+DECLARE_EVENT_CLASS(cgroup_freezer,
+
+	TP_PROTO(struct cgroup *cgrp, const char *path),
+
+	TP_ARGS(cgrp, path),
+
+	TP_STRUCT__entry(
+		__field(	int,		root			)
+		__field(	int,		id			)
+		__field(	int,		level			)
+		__string(	path,		path			)
+	),
+
+	TP_fast_assign(
+		__entry->root = cgrp->root->hierarchy_id;
+		__entry->id = cgrp->id;
+		__entry->level = cgrp->level;
+		__assign_str(path, path);
+	),
+
+	TP_printk("root=%d id=%d level=%d path=%s",
+		  __entry->root, __entry->id, __entry->level, __get_str(path))
+);
+
+DEFINE_EVENT(cgroup_freezer, cgroup_freeze,
+
+	TP_PROTO(struct cgroup *cgrp, const char *path),
+
+	TP_ARGS(cgrp, path)
+);
+
+DEFINE_EVENT(cgroup_freezer, cgroup_unfreeze,
+
+	TP_PROTO(struct cgroup *cgrp, const char *path),
+
+	TP_ARGS(cgrp, path)
+);
+
+DECLARE_EVENT_CLASS(cgroup_event,
+
+	TP_PROTO(struct cgroup *cgrp, const char *path, int val),
+
+	TP_ARGS(cgrp, path, val),
+
+	TP_STRUCT__entry(
+		__field(	int,		root			)
+		__field(	int,		id			)
+		__field(	int,		level			)
+		__string(	path,		path			)
+		__field(	int,		val			)
+	),
+
+	TP_fast_assign(
+		__entry->root = cgrp->root->hierarchy_id;
+		__entry->id = cgrp->id;
+		__entry->level = cgrp->level;
+		__assign_str(path, path);
+		__entry->val = val;
+	),
+
+	TP_printk("root=%d id=%d level=%d path=%s val=%d",
+		  __entry->root, __entry->id, __entry->level,
+		  __get_str(path), __entry->val)
+);
+
+DEFINE_EVENT(cgroup_event, cgroup_notify_frozen,
+
+	TP_PROTO(struct cgroup *cgrp, const char *path, int val),
+
+	TP_ARGS(cgrp, path, val)
+);
+
 #endif /* _TRACE_CGROUP_H */
 
 /* This part must be outside protection */
