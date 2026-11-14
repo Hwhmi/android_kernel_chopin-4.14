@@ -18,6 +18,18 @@ config DRM_MEDIATEK
 	  This driver provides kernel mode setting and
 	  buffer management to userspace.
 
+config OPLUS_DISPLAY_COMPAT
+	bool "OPlus/ColorOS display sysfs compatibility"
+	depends on DRM_MEDIATEK
+	default n
+	help
+	  Create /sys/kernel/oplus_display/* for the ColorOS display HAL on
+	  the mt6891 chopin kernel.  oplus_brightness is scaled from the
+	  ColorOS 12-bit range (0..4095) to the panel's 11-bit range
+	  (0..2047) and written through mtkfb_set_backlight_level().
+	  The Xiaomi mi_disp nodes are left untouched.  Say Y if this kernel
+	  must also boot ColorOS; say N for a Xiaomi-only build.
+
 config DRM_MEDIATEK_HDMI
 	tristate "DRM HDMI Support for Mediatek SoCs"
 	depends on DRM_MEDIATEK

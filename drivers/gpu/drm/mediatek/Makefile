@@ -86,6 +86,7 @@ endif
 endif
 
 mediatek-drm-$(CONFIG_DRM_FBDEV_EMULATION) += mtk_drm_fbdev.o
+mediatek-drm-$(CONFIG_OPLUS_DISPLAY_COMPAT) += oplus_disp_compat.o
 
 obj-$(CONFIG_DRM_MEDIATEK) += mediatek-drm.o
 
