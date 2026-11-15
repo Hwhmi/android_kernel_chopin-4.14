@@ -2271,6 +2271,13 @@ bool susfs_is_priority_uid_filtered(uid_t uid) {
 /* susfs avc log spoofing */
 DEFINE_STATIC_KEY_FALSE(susfs_is_avc_log_spoofing_enabled);
 
+/* security/selinux/avc.c declares these two SIDs as extern, but the upstream
+ * 4.14 patch never defines them, which breaks the final vmlinux link with
+ * "undefined symbol: susfs_ksu_sid". Resolve them here when AVC log
+ * spoofing is enabled; a lookup failure leaves them at 0 (feature off). */
+u32 susfs_ksu_sid;
+u32 susfs_priv_app_sid;
+
 void susfs_set_avc_log_spoofing(void __user **user_info) {
 	struct st_susfs_avc_log_spoofing info = {0};
 
@@ -2280,6 +2287,15 @@ void susfs_set_avc_log_spoofing(void __user **user_info) {
 	}
 
 	if (info.enabled) {
+		static const char ksu_ctx[] = "u:r:ksu:s0";
+		static const char priv_app_ctx[] = "u:r:priv_app:s0:c512,c768";
+
+		if (security_secctx_to_secid(ksu_ctx, sizeof(ksu_ctx) - 1,
+					     &susfs_ksu_sid))
+			susfs_ksu_sid = 0;
+		if (security_secctx_to_secid(priv_app_ctx, sizeof(priv_app_ctx) - 1,
+					     &susfs_priv_app_sid))
+			susfs_priv_app_sid = 0;
 		static_branch_enable(&susfs_is_avc_log_spoofing_enabled);
 		SUSFS_LOGI("enabling susfs_avc_log_spoofing\n");
 	} else {

@@ -17,6 +17,15 @@
 #include <linux/syscore_ops.h>
 #include <linux/uaccess.h>
 
+#ifdef CONFIG_KSU
+#ifndef CONFIG_KSU_KPROBES_HOOK
+/* KernelSU-Next supercall. Only needed when the reboot kprobe is not used
+ * (syscall-table / manual hook builds); see the SUSFS porting notes. */
+extern int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd,
+				 void __user **arg);
+#endif
+#endif
+
 /*
  * this indicates whether you can reboot with ctrl-alt-del: the default is yes
  */
@@ -290,6 +299,14 @@ SYSCALL_DEFINE4(reboot, int, magic1, int, magic2, unsigned int, cmd,
 	struct pid_namespace *pid_ns = task_active_pid_ns(current);
 	char buffer[256];
 	int ret = 0;
+
+#ifdef CONFIG_KSU
+#ifndef CONFIG_KSU_KPROBES_HOOK
+	/* Must run before the LINUX_REBOOT_MAGIC* validation: KSU uses its
+	 * own magic pair (0xDEADBEEF / 0xCAFEBABE / SUSFS_MAGIC). */
+	ksu_handle_sys_reboot(magic1, magic2, cmd, &arg);
+#endif
+#endif
 
 	/* We only trust the superuser with rebooting the system. */
 	if (!ns_capable(pid_ns->user_ns, CAP_SYS_BOOT))
