@@ -113,6 +113,13 @@ struct st_susfs_uname {
 	char                                    version[__NEW_UTS_LEN+1];
 	int                                     err;
 };
+
+/* Optional: a whole fake /proc/version line. Shared with the userspace
+ * tool; empty line clears the override. */
+struct st_susfs_proc_version {
+	char                                    line[SUSFS_FAKE_PROC_VERSION_SIZE];
+	int                                     err;
+};
 #endif // #ifdef CONFIG_KSU_SUSFS_SPOOF_UNAME
 
 /* enable_log */
@@ -219,6 +226,14 @@ void susfs_update_sus_kstat(void __user **user_info);
 #ifdef CONFIG_KSU_SUSFS_SPOOF_UNAME
 void susfs_set_uname(void __user **user_info);
 void susfs_spoof_uname(struct new_utsname* tmp);
+/* Read-only helpers for the other kernel utsname/proc views so that
+ * uname(2), /proc/sys/kernel/osrelease, /proc/sys/kernel/version and
+ * /proc/version all report the same spoofed values. */
+bool susfs_is_uname_spoof_active(void);
+void susfs_get_spoofed_uname(char *release, size_t rlen,
+			     char *version, size_t vlen);
+void susfs_set_proc_version(void __user **user_info);
+bool susfs_get_fake_proc_version(char *buf, size_t len);
 #endif // #ifdef CONFIG_KSU_SUSFS_SPOOF_UNAME
 
 /* enable_log */

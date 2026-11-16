@@ -15,6 +15,9 @@
 #include <linux/sysctl.h>
 #include <linux/wait.h>
 #include <linux/rwsem.h>
+#ifdef CONFIG_KSU_SUSFS_SPOOF_UNAME
+#include <linux/susfs.h>
+#endif
 
 #ifdef CONFIG_PROC_SYSCTL
 
@@ -52,6 +55,19 @@ static int proc_do_uts_string(struct ctl_table *table, int write,
 	down_read(&uts_sem);
 	memcpy(tmp_data, get_uts(table), sizeof(tmp_data));
 	up_read(&uts_sem);
+#ifdef CONFIG_KSU_SUSFS_SPOOF_UNAME
+	/* Keep osrelease/version consistent with uname(2).  Only the read
+	 * path is touched: a write must still land in the real uts namespace. */
+	if (!write && susfs_is_uname_spoof_active()) {
+		char rel[__NEW_UTS_LEN + 1], ver[__NEW_UTS_LEN + 1];
+
+		susfs_get_spoofed_uname(rel, sizeof(rel), ver, sizeof(ver));
+		if (table->data == init_uts_ns.name.release)
+			strscpy(tmp_data, rel, sizeof(tmp_data));
+		else if (table->data == init_uts_ns.name.version)
+			strscpy(tmp_data, ver, sizeof(tmp_data));
+	}
+#endif
 	r = proc_dostring(&uts_table, write, buffer, lenp, ppos);
 
 	if (write) {

@@ -37,6 +37,7 @@
 #define CMD_SUSFS_ADD_SUS_KSTAT_STATICALLY 0x55572
 #define CMD_SUSFS_ADD_TRY_UMOUNT 0x55580 /* deprecated */
 #define CMD_SUSFS_SET_UNAME 0x55590
+#define CMD_SUSFS_SET_PROC_VERSION 0x55591 /* optional: fake /proc/version line */
 #define CMD_SUSFS_ENABLE_LOG 0x555a0
 #define CMD_SUSFS_SET_CMDLINE_OR_BOOTCONFIG 0x555b0
 #define CMD_SUSFS_ADD_OPEN_REDIRECT 0x555c0
@@ -52,6 +53,7 @@
 
 #define SUSFS_MAX_LEN_PATHNAME 256 // 256 should address many paths already unless you are doing some strange experimental stuff, then set your own desired length
 #define SUSFS_FAKE_CMDLINE_OR_BOOTCONFIG_SIZE 8192 // 8192 is enough I guess
+#define SUSFS_FAKE_PROC_VERSION_SIZE 512 /* one /proc/version line */
 #define SUSFS_ENABLED_FEATURES_SIZE 8192 // 8192 is enough I guess
 #define SUSFS_MAX_VERSION_BUFSIZE 16
 #define SUSFS_MAX_VARIANT_BUFSIZE 16

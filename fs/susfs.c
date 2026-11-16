@@ -1398,6 +1398,76 @@ void susfs_spoof_uname(struct new_utsname* tmp) {
 		strscpy(tmp->version, my_uname.version, __NEW_UTS_LEN);
 	} while (read_seqretry(&susfs_uname_seqlock, seq));
 }
+
+/* Other kernel views of utsname must agree with uname(2).  The upstream
+ * 4.14 SUSFS patch only hooks SYSCALL_DEFINE1(newuname), leaving
+ * /proc/sys/kernel/osrelease, /proc/sys/kernel/version and /proc/version
+ * reading init_uts_ns directly -- a dead giveaway for consistency checks.
+ * These helpers expose the same spoof buffer without touching init_uts_ns. */
+bool susfs_is_uname_spoof_active(void) {
+	return static_key_enabled(&susfs_is_uname_spoof_buffer_set);
+}
+
+void susfs_get_spoofed_uname(char *release, size_t rlen,
+			     char *version, size_t vlen) {
+	unsigned seq;
+
+	do {
+		seq = read_seqbegin(&susfs_uname_seqlock);
+		if (release && rlen)
+			strscpy(release, my_uname.release, rlen);
+		if (version && vlen)
+			strscpy(version, my_uname.version, vlen);
+	} while (read_seqretry(&susfs_uname_seqlock, seq));
+}
+
+/* Optional whole-line /proc/version override.  /proc/version embeds the
+ * compile-time constants LINUX_COMPILE_BY/HOST, LINUX_COMPILER and
+ * UTS_VERSION in linux_proc_banner; those cannot be reconstructed from the
+ * spoofed release/version alone, so let userspace inject the stock line. */
+static char my_proc_version[SUSFS_FAKE_PROC_VERSION_SIZE];
+static DEFINE_SEQLOCK(susfs_proc_version_seqlock);
+
+void susfs_set_proc_version(void __user **user_info) {
+	struct st_susfs_proc_version info = {0};
+	size_t n;
+
+	if (copy_from_user(&info, (struct st_susfs_proc_version __user *)*user_info,
+			   sizeof(info))) {
+		info.err = -EFAULT;
+		goto out_copy_to_user;
+	}
+
+	info.line[SUSFS_FAKE_PROC_VERSION_SIZE - 1] = '\0';
+	n = strlen(info.line);
+	while (n && (info.line[n - 1] == '\n' || info.line[n - 1] == '\r'))
+		info.line[--n] = '\0';
+
+	write_seqlock(&susfs_proc_version_seqlock);
+	strscpy(my_proc_version, info.line, sizeof(my_proc_version));
+	write_sequnlock(&susfs_proc_version_seqlock);
+
+	SUSFS_LOGI("set fake /proc/version: '%s' (len=%zu)\n",
+		   my_proc_version, n);
+	info.err = 0;
+out_copy_to_user:
+	if (copy_to_user(&((struct st_susfs_proc_version __user *)*user_info)->err,
+			 &info.err, sizeof(info.err)))
+		info.err = -EFAULT;
+}
+
+bool susfs_get_fake_proc_version(char *buf, size_t len) {
+	unsigned seq;
+	bool set;
+
+	do {
+		seq = read_seqbegin(&susfs_proc_version_seqlock);
+		set = my_proc_version[0] != '\0';
+		if (set)
+			strscpy(buf, my_proc_version, len);
+	} while (read_seqretry(&susfs_proc_version_seqlock, seq));
+	return set;
+}
 #endif // #ifdef CONFIG_KSU_SUSFS_SPOOF_UNAME
 
 /* enable_log */
