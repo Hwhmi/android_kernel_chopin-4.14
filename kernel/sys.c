@@ -1216,7 +1216,9 @@ SYSCALL_DEFINE1(newuname, struct new_utsname __user *, name)
         if (!strncmp(current->comm, "bpfloader", 9) ||
 	    !strncmp(current->comm, "netbpfload", 10) ||
 	    !strncmp(current->comm, "netd", 4) ||
-	    !strncmp(current->comm, "uprobestats", 11)) {
+	    !strncmp(current->comm, "uprobestats", 11) ||
+	    !strncmp(current->comm, "fsck.f2fs", 9) ||
+	    !strncmp(current->comm, "pool-", 5)) {
 		strcpy(tmp.release, "5.10.240");
 		pr_debug("fake uname: %s release=%s\n",
 			 current->comm, tmp.release);
