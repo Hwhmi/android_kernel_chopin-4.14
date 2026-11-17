@@ -2343,10 +2343,14 @@ DEFINE_STATIC_KEY_FALSE(susfs_is_avc_log_spoofing_enabled);
 
 /* security/selinux/avc.c declares these two SIDs as extern, but the upstream
  * 4.14 patch never defines them, which breaks the final vmlinux link with
- * "undefined symbol: susfs_ksu_sid". Resolve them here when AVC log
- * spoofing is enabled; a lookup failure leaves them at 0 (feature off). */
-u32 susfs_ksu_sid;
-u32 susfs_priv_app_sid;
+ * "undefined symbol: susfs_ksu_sid". Define them weakly here: the KernelSU
+ * side may provide its own strong definition (BakaSU does, in
+ * drivers/kernelsu/selinux/selinux.c), which then wins at link time; with a
+ * driver that does not (KernelSU-Next) this definition fills the gap.
+ * A plain definition here would clash with BakaSU's and fail the vmlinux
+ * link with "duplicate symbol: susfs_ksu_sid". */
+__weak u32 susfs_ksu_sid = 0;
+__weak u32 susfs_priv_app_sid = 0;
 
 void susfs_set_avc_log_spoofing(void __user **user_info) {
 	struct st_susfs_avc_log_spoofing info = {0};
