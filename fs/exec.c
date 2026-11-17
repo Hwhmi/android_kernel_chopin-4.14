@@ -1697,6 +1697,7 @@ static int exec_binprm(struct linux_binprm *bprm)
  * sys_execve() executes a new program.
  */
 #ifdef CONFIG_KSU_SUSFS
+#include <linux/jump_label.h>
 #include <linux/susfs_def.h>
 extern struct static_key_true ksu_su_compat_enabled;
 extern struct static_key_true susfs_is_sdcard_android_data_not_decrypted;

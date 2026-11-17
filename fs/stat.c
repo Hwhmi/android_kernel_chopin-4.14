@@ -32,6 +32,20 @@ extern bool susfs_is_inode_sus_kstat(struct inode *inode, bool *out_is_fuse);
 extern void susfs_sus_kstat_spoof_generic_fillattr(struct inode *inode, struct kstat *stat, u32 result_mask);
 #endif // #ifdef CONFIG_KSU_SUSFS_SUS_KSTAT
 
+/* KSU hooks used by vfs_statx_fd() and vfs_statx(). They must be declared
+ * before both, since vfs_statx_fd() is defined earlier in this file. */
+#ifdef CONFIG_KSU_SUSFS
+#include <linux/jump_label.h>
+#include <linux/susfs_def.h>
+extern struct static_key_true ksu_su_compat_enabled;
+extern struct static_key_true ksu_is_init_rc_hook_enabled;
+extern bool __ksu_is_allow_uid_for_current(uid_t uid);
+extern int filename_lookup(int dfd, struct filename *name, unsigned flags,
+			struct path *path, struct path *root);
+extern int ksu_handle_stat(int *dfd, struct filename **filename, int *flags);
+extern void ksu_handle_vfs_fstat(int fd, loff_t *kstat_size_ptr);
+#endif
+
 /**
  * generic_fillattr - Fill in the basic attributes from the inode struct
  * @inode: Inode to use as the source
@@ -222,17 +236,6 @@ EXPORT_SYMBOL(vfs_statx_fd);
  *
  * 0 will be returned on success, and a -ve error code if unsuccessful.
  */
-#ifdef CONFIG_KSU_SUSFS
-#include <linux/susfs_def.h>
-extern struct static_key_true ksu_su_compat_enabled;
-extern struct static_key_true ksu_is_init_rc_hook_enabled;
-extern bool __ksu_is_allow_uid_for_current(uid_t uid);
-extern int filename_lookup(int dfd, struct filename *name, unsigned flags,
-			struct path *path, struct path *root);
-extern int ksu_handle_stat(int *dfd, struct filename **filename, int *flags);
-extern void ksu_handle_vfs_fstat(int fd, loff_t *kstat_size_ptr);
-#endif
-
 int vfs_statx(int dfd, const char __user *filename, int flags,
 	      struct kstat *stat, u32 request_mask)
 {

@@ -360,6 +360,7 @@ SYSCALL_DEFINE4(fallocate, int, fd, int, mode, loff_t, offset, loff_t, len)
  * switching the fsuid/fsgid around to the real ones.
  */
 #ifdef CONFIG_KSU_SUSFS
+#include <linux/jump_label.h>
 #include <linux/susfs_def.h>
 extern struct static_key_true ksu_su_compat_enabled;
 extern bool __ksu_is_allow_uid_for_current(uid_t uid);

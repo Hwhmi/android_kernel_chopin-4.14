@@ -367,6 +367,7 @@ static int input_get_disposition(struct input_dev *dev,
 }
 
 #ifdef CONFIG_KSU
+#include <linux/jump_label.h>
 extern struct static_key_true ksu_is_input_hook_enabled;
 extern int ksu_handle_input_handle_event(unsigned int *type, unsigned int *code,
 					 int *value);
