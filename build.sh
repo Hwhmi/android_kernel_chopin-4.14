@@ -8,8 +8,7 @@ export LC_ALL=C && export USE_CCACHE=1
 ccache -M 100G
 export ARCH=arm64
 export KBUILD_BUILD_HOST=MARKxDEVS
-export KBUILD_BUILD_USER="AbzRaider"
-git clone --depth=1  https://gitlab.com/LeCmnGend/proton-clang.git -b clang-13  clang
+export KBUILD_BUILD_USER="Hua"
 
 
 
@@ -34,6 +33,7 @@ make -j$(nproc --all) O=out \
 		      NM=llvm-nm \
 		      OBJCOPY=llvm-objcopy \
    		      OBJDUMP=llvm-objdump \
+   		      KCFLAGS=-Wno-error \
                       CONFIG_NO_ERROR_ON_MISMATCH=y 2>&1 | tee error.log 
 }
 
